@@ -55,6 +55,64 @@ including the service worker caches.
 
 ## How it works
 
+The red boxes never leave the browser. The only thing that ever crosses to the
+service is your **sync ID** — never the password, never the key, never a
+decrypted bookmark.
+
+```mermaid
+%%{init: {"themeVariables": {"edgeLabelBackground": "#ffffff", "lineColor": "#7b8794", "textColor": "#1a2340"}}}%%
+flowchart TB
+    subgraph cloud["☁️ xBrowserSync service (official or self-hosted)"]
+        api["GET /bookmarks/:id"]
+        db[("Encrypted blob.<br/>The service holds no key,<br/>so it cannot read this.")]
+        api --- db
+    end
+
+    subgraph device["📱 Your device — everything here stays here"]
+        pw["🔑 Password<br/>typed on every launch"]
+        sid["Sync ID"]
+        kdf["PBKDF2-SHA256<br/>250,000 rounds<br/>salt = sync ID"]
+        key["AES-GCM 256-bit key<br/>memory only, never stored"]
+        aes["AES-GCM decrypt<br/>IV = first 16 bytes"]
+        lz["LZ-UTF8 decompress"]
+        tree["Bookmark tree JSON"]
+        ui["📚 Folders, search,<br/>tap to open"]
+        store[("localStorage:<br/>service URL, sync ID,<br/>encrypted blob")]
+    end
+
+    sid -- "the only thing that leaves" --> api
+    api -- "encrypted blob" --> aes
+    api -. "cached verbatim, still encrypted" .-> store
+    store -. "when offline, password still required" .-> aes
+
+    pw --> kdf
+    sid --> kdf
+    kdf --> key
+    key --> aes
+    aes --> lz
+    lz --> tree
+    tree --> ui
+
+    %% Every node is styled explicitly so the diagram reads the same in
+    %% GitHub's light and dark themes.
+    classDef secret fill:#ffe3e3,stroke:#c92a2a,stroke-width:2px,color:#7a1010
+    classDef remote fill:#dbe7ff,stroke:#3b5bdb,color:#20306b
+    classDef local fill:#ffffff,stroke:#5c7cfa,color:#1a2340
+    class pw,key secret
+    class api,db remote
+    class sid,kdf,aes,lz,tree,ui,store local
+
+    %% Solid border = under your control; dashed = someone else's computer.
+    %% The explicit colour keeps the titles legible in dark mode too.
+    style device fill:#f4fbf6,stroke:#2f9e44,stroke-width:2px,color:#1b4332
+    style cloud fill:#eef3ff,stroke:#3b5bdb,stroke-width:2px,stroke-dasharray:6 4,color:#20306b
+```
+
+A wrong password fails loudly rather than quietly: AES-GCM is authenticated, so
+the tag check rejects it instead of returning garbage. Note also that the API
+answers **401 for "sync ID not found"**, not for a bad password — it never sees
+one.
+
 The decryption pipeline replicates the official client
 ([`crypto.service.ts`](https://github.com/xbrowsersync/app/blob/master/src/modules/shared/crypto/crypto.service.ts))
 exactly:
