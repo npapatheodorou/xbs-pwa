@@ -234,9 +234,24 @@ npm test
 npm run icons   # regenerate the icon set
 ```
 
-The icons are generated procedurally by `tools/generate-icons.js`, which writes
-PNGs using only Node's `zlib` — no image libraries. The generated icons are
-committed, so this only needs rerunning if you change the design.
+### Icons
+
+`npm run icons` regenerates `public/icons/` from `assets/logo-source.png`, using
+only Node's `zlib` — no image dependencies. It decodes the PNG, downscales with
+a gamma-correct box filter (averaging sRGB values directly would darken every
+edge), and re-encodes with adaptive scanline filtering.
+
+To change the logo, replace `assets/logo-source.png` with a square PNG and rerun.
+The generated icons are committed, so this is only needed when the artwork
+changes.
+
+Two constraints the tool enforces or assumes:
+
+- **Icons end up fully opaque.** Any alpha in the source is flattened onto white,
+  because iOS renders transparency in an `apple-touch-icon` as black.
+- **The mark must sit inside the central 80%.** The manifest declares the 512
+  icon as `purpose: "any maskable"`, so Android's mask must not be able to reach
+  it. A separate maskable file would be byte-identical, so there isn't one.
 
 ## Tests
 

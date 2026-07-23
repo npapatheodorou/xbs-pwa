@@ -41,8 +41,10 @@ test('every icon in the manifest exists and the manifest is valid', () => {
   }
 
   // Android needs a maskable icon to avoid letterboxing the homescreen icon.
+  // `purpose` is a space-separated list, so match on membership rather than
+  // equality -- the 512 icon is declared "any maskable".
   assert.ok(
-    manifest.icons.some((i) => i.purpose === 'maskable'),
+    manifest.icons.some((i) => (i.purpose || 'any').split(/\s+/).includes('maskable')),
     'manifest needs a maskable icon'
   );
   // Chrome requires both 192 and 512 to treat the app as installable.

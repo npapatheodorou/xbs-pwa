@@ -10,8 +10,12 @@
  */
 
 // Bump on every deploy that changes a shell file, so clients pick it up.
-const CACHE = 'xbs-shell-v1';
+const CACHE = 'xbs-shell-v2';
 
+// Only what the running app needs to start offline. The larger icons and the
+// apple-touch-icons are install-time assets fetched by the OS, not by the page,
+// so precaching them would add hundreds of KB to first load for no benefit.
+// The runtime handler below still caches them if they are ever requested.
 const SHELL = [
   './',
   './index.html',
@@ -23,12 +27,7 @@ const SHELL = [
   './js/lzutf8.js',
   './js/store.js',
   './js/bookmarks.js',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon-180.png',
-  './icons/apple-touch-icon-167.png',
-  './icons/apple-touch-icon-152.png'
+  './icons/icon-192.png'
 ];
 
 self.addEventListener('install', (event) => {

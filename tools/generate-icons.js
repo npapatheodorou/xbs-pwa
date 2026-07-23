@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Generates the PWA icon set with no image dependencies.
+ * Generates the PWA icon set from assets/logo-source.png.
  *
- * Draws a bookmark-ribbon glyph procedurally, supersampled for antialiasing,
- * and writes minimal PNGs (IHDR/IDAT/IEND) using Node's built-in zlib.
+ * No image dependencies: decodes and encodes PNG with Node's built-in zlib and
+ * downscales with a gamma-correct box filter.
  *
  * Run: npm run icons
  */
@@ -13,12 +13,176 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OUT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const SOURCE = path.join(ROOT, 'assets', 'logo-source.png');
+const OUT_DIR = path.join(ROOT, 'public', 'icons');
 
-const BG = [0x3b, 0x5b, 0xdb]; // --accent
-const FG = [0xff, 0xff, 0xff];
+/* ------------------------------------------------------------- PNG decode */
 
-/* ------------------------------------------------------------------ PNG */
+function decodePng(buffer) {
+  if (buffer.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
+    throw new Error('Not a PNG file.');
+  }
+
+  let offset = 8;
+  let width, height, bitDepth, colourType, interlace;
+  const idat = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colourType = data[9];
+      interlace = data[12];
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+    offset += 12 + length;
+  }
+
+  // Only what this project actually needs; fail loudly rather than silently
+  // producing wrong pixels.
+  if (bitDepth !== 8) throw new Error(`Unsupported bit depth: ${bitDepth} (expected 8).`);
+  if (interlace !== 0) throw new Error('Interlaced PNGs are not supported.');
+  if (colourType !== 2 && colourType !== 6) {
+    throw new Error(`Unsupported colour type: ${colourType} (expected 2 or 6).`);
+  }
+
+  const channels = colourType === 6 ? 4 : 3;
+  const stride = width * channels;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const out = Buffer.alloc(height * stride);
+
+  // Undo per-scanline filtering (PNG spec section 9).
+  let pos = 0;
+  for (let y = 0; y < height; y++) {
+    const filter = raw[pos++];
+    const line = raw.subarray(pos, pos + stride);
+    pos += stride;
+
+    for (let x = 0; x < stride; x++) {
+      const a = x >= channels ? out[y * stride + x - channels] : 0;
+      const b = y > 0 ? out[(y - 1) * stride + x] : 0;
+      const c = x >= channels && y > 0 ? out[(y - 1) * stride + x - channels] : 0;
+      let value = line[x];
+
+      switch (filter) {
+        case 0:
+          break;
+        case 1:
+          value += a;
+          break;
+        case 2:
+          value += b;
+          break;
+        case 3:
+          value += (a + b) >> 1;
+          break;
+        case 4: {
+          const p = a + b - c;
+          const pa = Math.abs(p - a);
+          const pb = Math.abs(p - b);
+          const pc = Math.abs(p - c);
+          value += pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+          break;
+        }
+        default:
+          throw new Error(`Unknown PNG filter type: ${filter}`);
+      }
+      out[y * stride + x] = value & 0xff;
+    }
+  }
+
+  // Flatten any alpha onto white. iOS renders transparency in an
+  // apple-touch-icon as black, so icons must end up fully opaque.
+  const rgb = new Uint8Array(width * height * 3);
+  for (let i = 0, j = 0; i < width * height; i++) {
+    const s = i * channels;
+    const alpha = channels === 4 ? out[s + 3] / 255 : 1;
+    rgb[j++] = Math.round(out[s] * alpha + 255 * (1 - alpha));
+    rgb[j++] = Math.round(out[s + 1] * alpha + 255 * (1 - alpha));
+    rgb[j++] = Math.round(out[s + 2] * alpha + 255 * (1 - alpha));
+  }
+
+  return { width, height, rgb };
+}
+
+/* ------------------------------------------------------------- resampling */
+
+// Downscaling by averaging sRGB values directly darkens edges, because sRGB is
+// not linear in light. Convert to linear light, average, convert back.
+const TO_LINEAR = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const c = i / 255;
+  TO_LINEAR[i] = c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+function fromLinear(value) {
+  const c = value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(c * 255)));
+}
+
+/**
+ * Box-filter resize with fractional edge coverage, in linear light.
+ * Exact area averaging is the right filter for downscaling flat vector art:
+ * it antialiases cleanly without the ringing a sharpening kernel would add.
+ */
+function resize(src, sw, sh, dw, dh) {
+  const dst = new Uint8Array(dw * dh * 3);
+  const scaleX = sw / dw;
+  const scaleY = sh / dh;
+
+  for (let dy = 0; dy < dh; dy++) {
+    const y0 = dy * scaleY;
+    const y1 = (dy + 1) * scaleY;
+    const yStart = Math.floor(y0);
+    const yEnd = Math.min(sh - 1, Math.ceil(y1) - 1);
+
+    for (let dx = 0; dx < dw; dx++) {
+      const x0 = dx * scaleX;
+      const x1 = (dx + 1) * scaleX;
+      const xStart = Math.floor(x0);
+      const xEnd = Math.min(sw - 1, Math.ceil(x1) - 1);
+
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let total = 0;
+
+      for (let sy = yStart; sy <= yEnd; sy++) {
+        const wy = Math.min(sy + 1, y1) - Math.max(sy, y0);
+        if (wy <= 0) continue;
+
+        for (let sx = xStart; sx <= xEnd; sx++) {
+          const wx = Math.min(sx + 1, x1) - Math.max(sx, x0);
+          if (wx <= 0) continue;
+
+          const weight = wx * wy;
+          const s = (sy * sw + sx) * 3;
+          r += TO_LINEAR[src[s]] * weight;
+          g += TO_LINEAR[src[s + 1]] * weight;
+          b += TO_LINEAR[src[s + 2]] * weight;
+          total += weight;
+        }
+      }
+
+      const d = (dy * dw + dx) * 3;
+      dst[d] = fromLinear(r / total);
+      dst[d + 1] = fromLinear(g / total);
+      dst[d + 2] = fromLinear(b / total);
+    }
+  }
+  return dst;
+}
+
+/* ------------------------------------------------------------- PNG encode */
 
 const CRC_TABLE = (() => {
   const table = new Int32Array(256);
@@ -45,28 +209,76 @@ function chunk(type, data) {
   return Buffer.concat([length, typeAndData, crc]);
 }
 
-/**
- * @param {number} size
- * @param {Uint8Array} rgb raw size*size*3 pixel data
- */
 function encodePng(size, rgb) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
   ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // colour type: truecolour RGB
-  ihdr[10] = 0; // deflate
-  ihdr[11] = 0; // adaptive filtering
-  ihdr[12] = 0; // no interlace
+  ihdr[9] = 2; // truecolour RGB, no alpha
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
 
-  // One filter byte (0 = None) per scanline.
-  const raw = Buffer.alloc(size * (size * 3 + 1));
+  // Adaptive filtering: try every filter on each scanline and keep the one with
+  // the smallest sum of absolute signed differences (the heuristic from the PNG
+  // spec). On smooth gradients this is worth several times the file size versus
+  // always writing filter 0.
+  const stride = size * 3;
+  const raw = Buffer.alloc(size * (stride + 1));
+  const candidate = Buffer.alloc(stride);
+  const best = Buffer.alloc(stride);
+
   for (let y = 0; y < size; y++) {
-    const rowStart = y * (size * 3 + 1);
-    raw[rowStart] = 0;
-    rgb.subarray(y * size * 3, (y + 1) * size * 3).forEach((v, i) => {
-      raw[rowStart + 1 + i] = v;
-    });
+    const row = rgb.subarray(y * stride, (y + 1) * stride);
+    const prev = y > 0 ? rgb.subarray((y - 1) * stride, y * stride) : null;
+
+    let bestFilter = 0;
+    let bestScore = Infinity;
+
+    for (let filter = 0; filter <= 4; filter++) {
+      let score = 0;
+      for (let x = 0; x < stride; x++) {
+        const a = x >= 3 ? row[x - 3] : 0;
+        const b = prev ? prev[x] : 0;
+        const c = x >= 3 && prev ? prev[x - 3] : 0;
+        let value;
+
+        switch (filter) {
+          case 0:
+            value = row[x];
+            break;
+          case 1:
+            value = row[x] - a;
+            break;
+          case 2:
+            value = row[x] - b;
+            break;
+          case 3:
+            value = row[x] - ((a + b) >> 1);
+            break;
+          default: {
+            const p = a + b - c;
+            const pa = Math.abs(p - a);
+            const pb = Math.abs(p - b);
+            const pc = Math.abs(p - c);
+            value = row[x] - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+          }
+        }
+        candidate[x] = value & 0xff;
+        // Interpret as a signed byte: small magnitudes deflate better.
+        score += Math.abs(((value & 0xff) << 24) >> 24);
+      }
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestFilter = filter;
+        candidate.copy(best);
+      }
+    }
+
+    const rowStart = y * (stride + 1);
+    raw[rowStart] = bestFilter;
+    best.copy(raw, rowStart + 1);
   }
 
   return Buffer.concat([
@@ -77,89 +289,48 @@ function encodePng(size, rgb) {
   ]);
 }
 
-/* ----------------------------------------------------------------- glyph */
-
-/**
- * Is the normalised point inside the bookmark ribbon?
- * `scale` shrinks the glyph about the centre so maskable icons stay inside
- * Android's safe zone.
- */
-function inGlyph(x, y, scale) {
-  // Normalise around centre so the glyph can be scaled uniformly.
-  const nx = (x - 0.5) / scale + 0.5;
-  const ny = (y - 0.5) / scale + 0.5;
-
-  const x0 = 0.3;
-  const x1 = 0.7;
-  const y0 = 0.18;
-  const y1 = 0.82;
-  const notchApexY = 0.6; // how far up the V cuts
-
-  if (nx < x0 || nx > x1 || ny < y0 || ny > y1) return false;
-
-  // Round the two top corners slightly.
-  const r = 0.05;
-  const cornerX = nx < x0 + r ? x0 + r : nx > x1 - r ? x1 - r : nx;
-  if (ny < y0 + r) {
-    const dx = nx - cornerX;
-    const dy = ny - (y0 + r);
-    if (cornerX !== nx && dx * dx + dy * dy > r * r) return false;
-  }
-
-  // Cut the V notch out of the bottom edge.
-  const halfWidth = (x1 - x0) / 2;
-  const offset = Math.abs(nx - 0.5) / halfWidth; // 0 at centre, 1 at edges
-  const notchTop = y1 - (y1 - notchApexY) * (1 - offset);
-  if (ny >= notchTop) return false;
-
-  return true;
-}
-
-/** Render one icon, supersampling SS×SS per pixel for smooth edges. */
-function renderIcon(size, glyphScale) {
-  const SS = 4;
-  const rgb = new Uint8Array(size * size * 3);
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let hits = 0;
-      for (let sy = 0; sy < SS; sy++) {
-        for (let sx = 0; sx < SS; sx++) {
-          const px = (x + (sx + 0.5) / SS) / size;
-          const py = (y + (sy + 0.5) / SS) / size;
-          if (inGlyph(px, py, glyphScale)) hits++;
-        }
-      }
-      const alpha = hits / (SS * SS);
-      const offset = (y * size + x) * 3;
-      // Composite the glyph over the background (icons stay fully opaque:
-      // iOS requires a non-transparent apple-touch-icon).
-      for (let c = 0; c < 3; c++) {
-        rgb[offset + c] = Math.round(BG[c] * (1 - alpha) + FG[c] * alpha);
-      }
-    }
-  }
-  return encodePng(size, rgb);
-}
-
 /* ------------------------------------------------------------------ main */
 
+// No separate maskable file: the mark sits well inside the central 80% safe
+// zone already, so a maskable variant would be byte-identical to icon-512.
+// The manifest declares that one icon as `purpose: "any maskable"` instead.
 const ICONS = [
-  // Full-bleed icons.
-  { file: 'icon-192.png', size: 192, scale: 1 },
-  { file: 'icon-512.png', size: 512, scale: 1 },
-  // Maskable: glyph shrunk into the safe zone so Android's mask cannot clip it.
-  { file: 'icon-maskable-512.png', size: 512, scale: 0.66 },
-  // iOS homescreen icons; Safari ignores the manifest and applies its own mask.
-  { file: 'apple-touch-icon-180.png', size: 180, scale: 1 },
-  { file: 'apple-touch-icon-167.png', size: 167, scale: 1 },
-  { file: 'apple-touch-icon-152.png', size: 152, scale: 1 }
+  { file: 'icon-192.png', size: 192 },
+  { file: 'icon-512.png', size: 512 },
+  { file: 'apple-touch-icon-180.png', size: 180 },
+  { file: 'apple-touch-icon-167.png', size: 167 },
+  { file: 'apple-touch-icon-152.png', size: 152 }
 ];
 
-fs.mkdirSync(OUT_DIR, { recursive: true });
-for (const { file, size, scale } of ICONS) {
-  const png = renderIcon(size, scale);
-  fs.writeFileSync(path.join(OUT_DIR, file), png);
-  console.log(`${file}  ${size}x${size}  ${(png.length / 1024).toFixed(1)} KB`);
+if (!fs.existsSync(SOURCE)) {
+  console.error(`Missing source artwork: ${path.relative(ROOT, SOURCE)}`);
+  process.exit(1);
 }
-console.log(`\nWrote ${ICONS.length} icons to ${path.relative(process.cwd(), OUT_DIR)}`);
+
+const source = decodePng(fs.readFileSync(SOURCE));
+if (source.width !== source.height) {
+  console.warn(`Warning: source is ${source.width}x${source.height}, not square.`);
+}
+console.log(`Source: ${path.relative(ROOT, SOURCE)} (${source.width}x${source.height})\n`);
+
+fs.mkdirSync(OUT_DIR, { recursive: true });
+
+let totalBytes = 0;
+for (const { file, size } of ICONS) {
+  const resized = resize(source.rgb, source.width, source.height, size, size);
+
+  // Truecolour, deliberately. Palette quantisation would cut these files by
+  // roughly half again, but this artwork is a full-frame gradient: 256 entries
+  // band it visibly, and dithering to hide the banding speckles the flat cube
+  // faces. Faithful colour is worth the bytes; the service worker only
+  // precaches the one icon the running app actually displays.
+  const png = encodePng(size, resized);
+
+  fs.writeFileSync(path.join(OUT_DIR, file), png);
+  totalBytes += png.length;
+  console.log(`${file.padEnd(28)} ${size}x${size}  ${(png.length / 1024).toFixed(1).padStart(6)} KB`);
+}
+
+console.log(
+  `\nWrote ${ICONS.length} icons to ${path.relative(ROOT, OUT_DIR)} — ${(totalBytes / 1024).toFixed(1)} KB total`
+);
