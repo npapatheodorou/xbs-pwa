@@ -13,11 +13,19 @@ import assert from 'node:assert/strict';
 import lz from 'lzutf8';
 import { webcrypto } from 'node:crypto';
 
-import { deriveKey, decryptBookmarks, base64ToBytes } from '../public/js/crypto.js';
+import {
+  deriveKey,
+  decryptBookmarks,
+  base64ToBytes,
+  bytesToBase64,
+  exportKey,
+  importKey
+} from '../public/js/crypto.js';
 
 // The shipped modules expect browser globals.
 globalThis.crypto ??= webcrypto;
 globalThis.atob ??= (s) => Buffer.from(s, 'base64').toString('binary');
+globalThis.btoa ??= (s) => Buffer.from(s, 'binary').toString('base64');
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64');
 
@@ -133,6 +141,64 @@ test('an empty sync decrypts to an empty array', async () => {
 test('truncated payloads are rejected', async () => {
   const key = await deriveKey(PASSWORD, SYNC_ID);
   await assert.rejects(() => decryptBookmarks(b64(new Uint8Array(8)), key));
+});
+
+/* --------------------- "stay signed in" saved-key path ------------------- */
+
+test('base64 helpers round-trip arbitrary bytes', () => {
+  for (const length of [0, 1, 2, 3, 31, 32, 255]) {
+    const bytes = new Uint8Array(length).map((_, i) => (i * 37) % 256);
+    assert.deepEqual(base64ToBytes(bytesToBase64(bytes)), bytes);
+  }
+});
+
+test('an exported key re-imports and still decrypts the same sync', async () => {
+  // This is the whole "stay signed in" mechanism: derive once, persist the
+  // exported key, and decrypt with it on later launches without the password.
+  const hash = await officialPasswordHash(PASSWORD, SYNC_ID);
+  const tree = [{ id: 1, title: 'Saved session', url: 'https://example.com' }];
+  const payload = await officialEncrypt(JSON.stringify(tree), hash);
+
+  const derived = await deriveKey(PASSWORD, SYNC_ID, { extractable: true });
+  const saved = await exportKey(derived);
+
+  // What gets persisted must be the raw 32-byte AES key, exactly the
+  // representation the official client stores.
+  assert.equal(base64ToBytes(saved).length, 32);
+  assert.equal(saved, hash);
+
+  const reimported = await importKey(saved);
+  assert.deepEqual(await decryptBookmarks(payload, reimported), tree);
+});
+
+test('keys are non-extractable unless remembering was requested', async () => {
+  const ephemeral = await deriveKey(PASSWORD, SYNC_ID);
+  await assert.rejects(
+    () => exportKey(ephemeral),
+    'a key derived without extractable:true must not be exportable'
+  );
+
+  // And a key re-imported from storage is likewise locked down.
+  const derived = await deriveKey(PASSWORD, SYNC_ID, { extractable: true });
+  const reimported = await importKey(await exportKey(derived));
+  await assert.rejects(() => exportKey(reimported));
+});
+
+test('a corrupt or wrong-length saved key is rejected', async () => {
+  await assert.rejects(() => importKey(bytesToBase64(new Uint8Array(16))));
+  await assert.rejects(() => importKey(bytesToBase64(new Uint8Array(0))));
+  await assert.rejects(() => importKey('not base64 at all!!'));
+});
+
+test('a saved key from a different sync cannot decrypt this one', async () => {
+  const hash = await officialPasswordHash(PASSWORD, SYNC_ID);
+  const payload = await officialEncrypt(JSON.stringify([{ id: 1 }]), hash);
+
+  const otherDerived = await deriveKey(PASSWORD, 'ffffffffffffffffffffffffffffffff', {
+    extractable: true
+  });
+  const otherSaved = await importKey(await exportKey(otherDerived));
+  await assert.rejects(() => decryptBookmarks(payload, otherSaved));
 });
 
 test('tampered ciphertext is rejected by the GCM tag', async () => {

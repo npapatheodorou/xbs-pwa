@@ -2,14 +2,17 @@
  * App shell: view routing, sync orchestration and rendering.
  *
  * Security posture:
- *   - the password and derived key exist only in module scope, never persisted
- *   - only the encrypted blob is cached, so offline use still requires the password
+ *   - the password itself is never persisted, only ever held long enough to
+ *     derive a key from
+ *   - if the user chooses to stay signed in, the derived key is saved instead;
+ *     otherwise it exists in module scope only, for the lifetime of the page
+ *   - only the encrypted blob is cached, never decrypted bookmarks
  *   - all bookmark text is rendered via textContent / DOM APIs, never innerHTML
  */
 
 import * as api from './api.js';
 import * as store from './store.js';
-import { deriveKey, decryptBookmarks } from './crypto.js';
+import { deriveKey, decryptBookmarks, exportKey, importKey } from './crypto.js';
 import {
   countBookmarks,
   displayHost,
@@ -24,8 +27,11 @@ import {
 
 /* ------------------------------------------------------------------ state */
 
-/** In-memory only. Cleared on lock, logout and page unload. */
+/** The AES key in use. Cleared on lock, logout and page unload. */
 let cryptoKey = null;
+
+/** Whether this session's key is also saved to disk ("stay signed in"). */
+let keyIsSaved = false;
 let bookmarks = [];
 let settings = null;
 
@@ -371,8 +377,14 @@ function enterBookmarks() {
   showView('bookmarks');
 }
 
-/** Drop all secrets and decrypted data, and return to the unlock screen. */
+/**
+ * Drop all secrets and decrypted data, and return to the unlock screen.
+ * Also discards any saved key, since otherwise the next launch would sign
+ * straight back in and locking would be meaningless.
+ */
 function lock() {
+  store.clearSavedKey();
+  keyIsSaved = false;
   cryptoKey = null;
   bookmarks = [];
   expanded.clear();
@@ -387,6 +399,7 @@ function lock() {
 
 async function logout() {
   await store.forgetEverything();
+  keyIsSaved = false;
   cryptoKey = null;
   bookmarks = [];
   expanded.clear();
@@ -408,9 +421,11 @@ function startSetupView() {
   showView('setup');
 }
 
-function startUnlockView() {
+function startUnlockView(message) {
   $('unlock-sync-id').textContent = settings.syncId;
   $('unlock-service').textContent = settings.serviceUrl;
+  $('unlock-remember').checked = false;
+  showError($('unlock-error'), message || '');
   showView('unlock');
 }
 
@@ -454,16 +469,25 @@ $('setup-form').addEventListener('submit', async (event) => {
       );
     }
 
+    const remember = $('setup-remember').checked;
+
     setBusy(true, 'Deriving key…');
     // 250k PBKDF2 rounds: about a second on a modern phone, longer on old ones.
-    cryptoKey = await deriveKey(password, syncId);
+    cryptoKey = await deriveKey(password, syncId, { extractable: remember });
 
     setBusy(true, 'Fetching bookmarks…');
     settings = { serviceUrl, syncId };
     await loadBookmarks({ allowCache: false });
 
-    // Only persist once decryption has actually succeeded.
+    // Only persist once decryption has actually succeeded, so we never save
+    // credentials that turn out not to work.
     store.saveSettings(settings);
+    if (remember) await rememberKey(syncId);
+    else {
+      store.clearSavedKey();
+      keyIsSaved = false;
+    }
+
     $('setup-password').value = '';
     enterBookmarks();
   } catch (err) {
@@ -483,11 +507,21 @@ $('unlock-form').addEventListener('submit', async (event) => {
   if (!password) return showError($('unlock-error'), 'Enter your password.');
 
   try {
+    const remember = $('unlock-remember').checked;
+
     setBusy(true, 'Deriving key…');
-    cryptoKey = await deriveKey(password, settings.syncId);
+    cryptoKey = await deriveKey(password, settings.syncId, { extractable: remember });
 
     setBusy(true, 'Fetching bookmarks…');
     await loadBookmarks({ allowCache: true });
+
+    // The checkbox is authoritative: unchecking it must also discard any key
+    // saved earlier, or the next launch would sign straight back in.
+    if (remember) await rememberKey(settings.syncId);
+    else {
+      store.clearSavedKey();
+      keyIsSaved = false;
+    }
 
     $('unlock-password').value = '';
     enterBookmarks();
@@ -498,6 +532,19 @@ $('unlock-form').addEventListener('submit', async (event) => {
     setBusy(false);
   }
 });
+
+/**
+ * Persist the current key so the next launch skips the password prompt.
+ * Failure here is not fatal: the session continues, just not remembered.
+ */
+async function rememberKey(syncId) {
+  try {
+    store.saveKey(await exportKey(cryptoKey), syncId);
+    keyIsSaved = true;
+  } catch {
+    keyIsSaved = false;
+  }
+}
 
 /**
  * Turn an exception into something a person can act on. A decryption failure is
@@ -551,6 +598,16 @@ function openSheet() {
       ? `${formatRelative(fetchedAt)} (cached, may be stale)`
       : formatRelative(fetchedAt);
   $('sheet-count').textContent = String(countBookmarks(bookmarks));
+  $('sheet-signed-in').textContent = keyIsSaved
+    ? 'Yes — key saved on this device'
+    : 'No — password needed next launch';
+
+  // "Sign out" only makes sense when there is a saved key to discard; "Lock"
+  // only when there is not, since otherwise the next launch would let you
+  // straight back in.
+  $('sheet-sign-out').hidden = !keyIsSaved;
+  $('sheet-lock').hidden = keyIsSaved;
+
   $('sheet-backdrop').hidden = false;
 }
 
@@ -585,6 +642,12 @@ $('sheet-collapse').addEventListener('click', () => {
 
 $('sheet-lock').addEventListener('click', () => {
   closeSheet();
+  lock();
+});
+
+$('sheet-sign-out').addEventListener('click', () => {
+  closeSheet();
+  // Same path as Lock: it discards the saved key and returns to the prompt.
   lock();
 });
 
@@ -669,6 +732,49 @@ window.addEventListener('online', () => {
   if (cryptoKey && dataOrigin === 'cache') syncNow();
 });
 
+/**
+ * Sign in with a saved key, if there is one for this sync.
+ * @returns {Promise<boolean>} whether the app is now showing bookmarks
+ */
+async function tryAutoUnlock() {
+  const savedKey = store.getSavedKey();
+  if (!savedKey) return false;
+
+  // A key left over from a different sync must never be applied to this one:
+  // it would simply fail to decrypt, but the error would be confusing.
+  if (store.getSavedKeySyncId() !== settings.syncId) {
+    store.clearSavedKey();
+    return false;
+  }
+
+  try {
+    setBusy(true, 'Opening…');
+    cryptoKey = await importKey(savedKey);
+    keyIsSaved = true;
+    await loadBookmarks({ allowCache: true });
+    enterBookmarks();
+    return true;
+  } catch (err) {
+    cryptoKey = null;
+    keyIsSaved = false;
+
+    // A network failure with nothing cached is not a credential problem, so
+    // keep the saved key and let the user retry.
+    if (err instanceof api.ApiError) {
+      startUnlockView(`${err.message} Your saved sign-in is still in place.`);
+      return true;
+    }
+
+    // Anything else means the saved key no longer decrypts this sync -- most
+    // likely the password was changed elsewhere. Discard it and ask again.
+    store.clearSavedKey();
+    startUnlockView('Your saved sign-in no longer works. Please enter your password.');
+    return true;
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function main() {
   // Web Crypto is only exposed in a secure context; without it nothing works.
   if (!window.isSecureContext || !crypto?.subtle) {
@@ -678,8 +784,11 @@ async function main() {
   }
 
   settings = store.getSettings();
-  if (settings) startUnlockView();
-  else startSetupView();
+  if (!settings) {
+    startSetupView();
+  } else if (!(await tryAutoUnlock())) {
+    startUnlockView();
+  }
 
   if ('serviceWorker' in navigator) {
     try {

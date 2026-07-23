@@ -26,38 +26,59 @@ deliberately not implemented — see [Roadmap](#roadmap).
 
 ## Privacy
 
-- **Your password never leaves the device.** It is used only as PBKDF2 input,
-  in-page, to derive a decryption key.
-- **The password and the derived key are never written to disk.** They exist in
-  memory for the lifetime of the page, which is why the app asks for the password
-  each time it starts.
-- **Only the encrypted blob is cached**, exactly as the API returned it. Offline
-  use still requires your password, because decryption happens locally each time.
+- **Your password never leaves the device, and is never written to disk.** It is
+  used only as PBKDF2 input, in-page, to derive a decryption key.
+- **Only the encrypted blob is cached**, exactly as the API returned it.
+  Decrypted bookmarks are never persisted.
 - **No analytics, no telemetry, no third-party requests.** The only network
   destination is the xBrowserSync service you configure. The Content-Security-Policy
   and a test in `tests/assets.test.mjs` both enforce this.
 - The service itself never sees your password or plaintext — that is xBrowserSync's
   design, and this client preserves it.
 
+### Staying signed in
+
+By default the app **stays signed in**, like any other app with a saved login:
+it opens straight to your bookmarks without asking for anything.
+
+What it saves is the **derived key, not your password**. The key decrypts this
+one sync and nothing else, so a password you may have reused elsewhere is never
+stored. (This is also exactly what the official browser extension persists — it
+keeps the base64 derived key under the name `password`.) A pleasant side effect
+is that unlocking becomes instant, since the 250,000 PBKDF2 rounds are skipped.
+
+Untick **Stay signed in on this device** on the setup or unlock screen to keep
+the old behaviour, where the key is held in memory only and the password is
+required on every cold start. **Sign out** in the menu discards a saved key
+without forgetting the sync.
+
 ### What is stored on the device
 
 | Stored in `localStorage` | Not stored |
 | --- | --- |
-| Service URL | Password |
-| Sync ID | Derived encryption key |
-| Encrypted bookmarks blob | Decrypted bookmarks |
+| Service URL | **Your password** |
+| Sync ID | Decrypted bookmarks |
+| Encrypted bookmarks blob | Derived key, *if you do not stay signed in* |
+| Derived key, *if you stay signed in* | |
 
-The sync ID and the encrypted blob are unencrypted at rest in the sense that any
-process able to read this origin's `localStorage` can read them. The blob is
-still ciphertext and useless without your password, but **anyone who can read
-your device storage learns your sync ID**. "Forget this sync" clears all of it,
-including the service worker caches.
+None of this is encrypted at rest — any process that can read this origin's
+`localStorage` can read all of it. So be aware that:
+
+- **Anyone who can read your device storage learns your sync ID**, whether or not
+  you stay signed in.
+- **If you stay signed in, they can also decrypt your bookmarks**, because the key
+  is right there next to the blob. They still do not learn your password, so
+  other accounts using it are unaffected — but this sync is readable.
+
+That is the same trade every "remember me" checkbox makes. On a device only you
+use it is a reasonable one; on a shared or unencrypted device, untick the box.
+"Forget this sync" clears everything, including the service worker caches.
 
 ## How it works
 
-The red boxes never leave the browser. The only thing that ever crosses to the
-service is your **sync ID** — never the password, never the key, never a
-decrypted bookmark.
+The red boxes are the secrets, and neither is ever transmitted anywhere. The
+only thing that crosses to the service is your **sync ID** — never the password,
+never the key, never a decrypted bookmark.
 
 ```mermaid
 %%{init: {"themeVariables": {"edgeLabelBackground": "#ffffff", "lineColor": "#7b8794", "textColor": "#1a2340"}}}%%
@@ -69,10 +90,10 @@ flowchart TB
     end
 
     subgraph device["📱 Your device — everything here stays here"]
-        pw["🔑 Password<br/>typed on every launch"]
+        pw["🔑 Password<br/>never stored, never sent"]
         sid["Sync ID"]
         kdf["PBKDF2-SHA256<br/>250,000 rounds<br/>salt = sync ID"]
-        key["AES-GCM 256-bit key<br/>memory only, never stored"]
+        key["AES-GCM 256-bit key"]
         aes["AES-GCM decrypt<br/>IV = first 16 bytes"]
         lz["LZ-UTF8 decompress"]
         tree["Bookmark tree JSON"]
@@ -83,7 +104,8 @@ flowchart TB
     sid -- "the only thing that leaves" --> api
     api -- "encrypted blob" --> aes
     api -. "cached verbatim, still encrypted" .-> store
-    store -. "when offline, password still required" .-> aes
+    store -. "read back when offline" .-> aes
+    key -. "saved only if you<br/>stay signed in" .-> store
 
     pw --> kdf
     sid --> kdf
@@ -199,8 +221,9 @@ homescreen icon to get the standalone window.
 **Android (Chrome):** open the site, tap **⋮** → **Install app** / **Add to Home
 screen**. Chrome may also show an install prompt on its own.
 
-You will be asked for your password each time the app is launched cold. That is
-intentional, not a bug.
+By default the app stays signed in, so it opens straight to your bookmarks. See
+[Staying signed in](#staying-signed-in) if you would rather be asked for your
+password each time.
 
 ## Local development
 
@@ -244,8 +267,9 @@ Possible next steps, roughly in order of value:
   the `PUT /bookmarks/:id` conflict protocol (`lastUpdated` must match or the
   API returns 409). Bookmark IDs and the `[xbs] …` container conventions have to
   be honoured exactly.
-- A device passcode or WebAuthn/biometric gate, so the derived key could be
-  cached between launches without leaving it readable at rest.
+- A WebAuthn/biometric or passcode gate wrapping the saved key, so staying
+  signed in would not leave the key readable in `localStorage`. This is the main
+  weakness of the current "stay signed in" option.
 - Legacy sync support (pre-API-1.1.3 syncs, which skip PBKDF2 and use the raw
   password as the key). Currently detected and refused with a clear message.
 - Favicons for bookmarks — deliberately omitted, since fetching them would leak

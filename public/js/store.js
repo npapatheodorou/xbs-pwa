@@ -4,19 +4,24 @@
  * What is stored on the device:
  *   - service URL and sync ID  (identifiers, not secrets)
  *   - the ENCRYPTED bookmarks blob, verbatim as the API returned it
+ *   - optionally, if the user chose to stay signed in, the derived AES key
  *
  * What is never stored:
- *   - the password
- *   - the derived key
+ *   - the password itself
  *   - decrypted bookmarks
  *
+ * The saved credential is the *derived key*, not the password. It is exactly
+ * what is needed to decrypt this one sync and nothing else, so a password the
+ * user may have reused elsewhere is never written to disk. This matches what
+ * the official client persists.
+ *
  * Caching the encrypted blob rather than the plaintext is what lets the app
- * work offline without keeping any secret at rest: decryption happens locally,
- * so an offline launch just needs the password again.
+ * work offline: decryption still happens locally on every launch.
  */
 
 const SETTINGS_KEY = 'xbs.settings.v1';
 const CACHE_KEY = 'xbs.cache.v1';
+const KEY_KEY = 'xbs.key.v1';
 
 function readJson(key) {
   try {
@@ -67,11 +72,52 @@ export function saveCachedSync({ bookmarks, lastUpdated }) {
   });
 }
 
+/* ------------------------------------------------------------ saved login */
+
+/**
+ * The base64 derived key for a remembered login, or null.
+ * @returns {string | null}
+ */
+export function getSavedKey() {
+  const saved = readJson(KEY_KEY);
+  return typeof saved?.key === 'string' ? saved.key : null;
+}
+
+/**
+ * @param {string} base64Key
+ * @param {string} syncId recorded so a key left over from a different sync is
+ *   never applied to the wrong one
+ */
+export function saveKey(base64Key, syncId) {
+  return writeJson(KEY_KEY, { key: base64Key, syncId });
+}
+
+/** Which sync a saved key belongs to, or null. */
+export function getSavedKeySyncId() {
+  return readJson(KEY_KEY)?.syncId ?? null;
+}
+
+export function hasSavedKey() {
+  return getSavedKey() !== null;
+}
+
+/** Sign out of the saved session, keeping the sync ID and cached bookmarks. */
+export function clearSavedKey() {
+  try {
+    localStorage.removeItem(KEY_KEY);
+  } catch {
+    /* nothing we can do if storage is unavailable */
+  }
+}
+
+/* ---------------------------------------------------------------- wipe */
+
 /** Clear everything this app has stored, including the service worker caches. */
 export async function forgetEverything() {
   try {
     localStorage.removeItem(SETTINGS_KEY);
     localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(KEY_KEY);
   } catch {
     /* nothing we can do if storage is unavailable */
   }

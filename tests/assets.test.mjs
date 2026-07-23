@@ -130,6 +130,18 @@ test('every element id the app looks up exists in the HTML', () => {
   }
 });
 
+test('the hidden attribute overrides author display rules', () => {
+  // The app toggles several .btn elements via the hidden attribute, and
+  // `.btn { display: block }` would otherwise win over the UA stylesheet's
+  // `[hidden] { display: none }`, leaving them visible.
+  const css = read('css/styles.css');
+  assert.match(
+    css,
+    /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
+    'styles.css needs a global [hidden] { display: none !important } rule'
+  );
+});
+
 test('netlify.toml has the expected security headers and SPA fallback', () => {
   const toml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
 

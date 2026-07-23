@@ -33,19 +33,35 @@ export function base64ToBytes(value) {
 }
 
 /**
+ * Encode bytes as base64.
+ * @param {Uint8Array} bytes
+ * @returns {string}
+ */
+export function bytesToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/**
  * Derive the AES-GCM key from a password and sync ID.
  *
  * The sync ID is the PBKDF2 salt. Note that the official client stores the
  * base64 of this derived key under the name "password" and imports it directly
- * as the AES key at decrypt time -- there is no second derivation step. This
- * client never persists the key or the password; it lives in memory only, for
- * the lifetime of the page.
+ * as the AES key at decrypt time -- there is no second derivation step.
+ *
+ * By default the key is non-extractable and lives in memory only. Pass
+ * `extractable: true` when the user has chosen to stay signed in, so it can be
+ * exported once and persisted in place of the password.
  *
  * @param {string} password
  * @param {string} syncId used as the PBKDF2 salt
- * @returns {Promise<CryptoKey>} a non-extractable AES-GCM key
+ * @param {{extractable?: boolean}} [options]
+ * @returns {Promise<CryptoKey>} an AES-GCM key
  */
-export async function deriveKey(password, syncId) {
+export async function deriveKey(password, syncId, { extractable = false } = {}) {
   const encoder = new TextEncoder();
 
   const baseKey = await crypto.subtle.importKey(
@@ -65,11 +81,40 @@ export async function deriveKey(password, syncId) {
     },
     baseKey,
     { name: ENCRYPTION_ALGORITHM, length: KEY_LENGTH_BITS },
-    // Not extractable: this client only ever decrypts, and never needs to export
-    // or persist the key material.
-    false,
+    extractable,
     ['decrypt']
   );
+}
+
+/**
+ * Export a derived key as base64, to persist a "stay signed in" session.
+ *
+ * This is the same representation the official client stores: the raw 32-byte
+ * AES key, base64 encoded. The key must have been derived with
+ * `extractable: true`.
+ *
+ * @param {CryptoKey} key
+ * @returns {Promise<string>}
+ */
+export async function exportKey(key) {
+  return bytesToBase64(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
+}
+
+/**
+ * Re-import a persisted key.
+ *
+ * Imported as non-extractable: once stored there is never a reason to export it
+ * again, so this narrows what a script running on the page could get back out.
+ *
+ * @param {string} base64Key
+ * @returns {Promise<CryptoKey>}
+ */
+export async function importKey(base64Key) {
+  const keyData = base64ToBytes(base64Key);
+  if (keyData.length !== KEY_LENGTH_BITS / 8) {
+    throw new Error('Stored key is the wrong length.');
+  }
+  return crypto.subtle.importKey('raw', keyData, { name: ENCRYPTION_ALGORITHM }, false, ['decrypt']);
 }
 
 /**

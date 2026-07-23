@@ -93,10 +93,23 @@
               </span>
             </label>
 
+            <label class="check">
+              <input id="setup-remember" type="checkbox" checked />
+              <span>
+                <span class="check-label">Stay signed in on this device</span>
+                <span class="hint">
+                  Saves the decryption key derived from your password, so the app opens straight to
+                  your bookmarks. Your password itself is never saved. Leave this off to be asked
+                  for it each time.
+                </span>
+              </span>
+            </label>
+
             <div class="notice notice-info">
-              <strong>What gets stored on this device:</strong> the service URL, the sync ID, and
-              your bookmarks in their encrypted form. Your password and the key derived from it are
-              kept in memory only, so you will be asked for it again each time the app starts.
+              <strong>What gets stored on this device:</strong> the service URL, the sync ID, your
+              bookmarks in their encrypted form, and — while you stay signed in — the decryption
+              key. Anyone who can read this browser's storage could use them, so avoid this on a
+              shared device.
             </div>
 
             <p id="setup-error" class="error" role="alert" hidden></p>
@@ -127,6 +140,13 @@
               <!-- autofocus is deliberately omitted: on iOS it forces the keyboard
                    up before the standalone window has settled. -->
               <input id="unlock-password" type="password" autocomplete="current-password" required />
+            </label>
+
+            <label class="check">
+              <input id="unlock-remember" type="checkbox" />
+              <span>
+                <span class="check-label">Stay signed in on this device</span>
+              </span>
             </label>
 
             <p id="unlock-error" class="error" role="alert" hidden></p>
@@ -200,9 +220,15 @@
           <dd id="sheet-last-synced"></dd>
           <dt>Bookmarks</dt>
           <dd id="sheet-count"></dd>
+          <dt>Signed in</dt>
+          <dd id="sheet-signed-in"></dd>
         </dl>
         <button id="sheet-expand" class="btn btn-quiet" type="button">Expand all folders</button>
         <button id="sheet-collapse" class="btn btn-quiet" type="button">Collapse all folders</button>
+        <!-- Only one of these is shown, depending on whether a key is saved. -->
+        <button id="sheet-sign-out" class="btn btn-quiet" type="button" hidden>
+          Sign out (ask for password next time)
+        </button>
         <button id="sheet-lock" class="btn btn-quiet" type="button">Lock</button>
         <button id="sheet-logout" class="btn btn-danger" type="button">Forget this sync</button>
         <button id="sheet-close" class="btn btn-quiet" type="button">Close</button>
