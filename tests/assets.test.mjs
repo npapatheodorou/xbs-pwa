@@ -115,6 +115,21 @@ test('no third-party origins are referenced anywhere in the app', () => {
   }
 });
 
+test('every element id the app looks up exists in the HTML', () => {
+  // Without a build step nothing catches a renamed id: getElementById just
+  // returns null and the feature silently stops working.
+  const html = read('index.html');
+  const js = read('js/app.js');
+
+  const htmlIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
+  const usedIds = [...js.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]);
+
+  assert.ok(usedIds.length > 10, 'expected the app to look up several ids');
+  for (const id of new Set(usedIds)) {
+    assert.ok(htmlIds.has(id), `app.js looks up #${id}, which index.html does not define`);
+  }
+});
+
 test('netlify.toml has the expected security headers and SPA fallback', () => {
   const toml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
 
