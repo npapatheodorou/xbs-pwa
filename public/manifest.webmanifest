@@ -2,12 +2,12 @@
   "name": "xBrowserSync Bookmarks",
   "short_name": "Bookmarks",
   "description": "An unofficial, read-only mobile client for xBrowserSync. Decrypts your bookmarks on-device.",
-  "start_url": "./",
+  "id": "./app.html",
+  "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#f6f7f9",
-  "theme_color": "#3b5bdb",
+  "background_color": "#f4f8f9",
+  "theme_color": "#1b6b7d",
   "categories": ["productivity", "utilities"],
   "icons": [
     {

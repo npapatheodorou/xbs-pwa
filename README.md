@@ -18,8 +18,16 @@ modules. Nothing is bundled, minified or transpiled.
 - Decrypts it **in your browser** with the Web Crypto API
 - Renders the folder hierarchy, with collapsible folders and search across
   titles, URLs, descriptions and tags
+- Marks every bookmark with an external-link icon, since tapping one leaves the
+  app, and gives each folder an **open-all** action that opens every bookmark it
+  contains — including nested subfolders — in its own tab
 - Works offline against the last synced copy, always clearly labelled as cached
 - Installs to the homescreen on iOS Safari and Android Chrome
+- Adapts from a phone to a large desktop monitor
+
+The site is two pages: `index.html` is the landing page, and `app.html` is the
+app itself. The manifest's `start_url` points at `app.html`, so installing to
+the homescreen opens straight into the app rather than the marketing page.
 
 It is **read-only by design**. Adding, editing, moving and deleting bookmarks are
 deliberately not implemented — see [Roadmap](#roadmap).
@@ -214,12 +222,17 @@ To restrict this app to a single instance, replace `connect-src https:` in
 
 ## Installing on a phone
 
+Open **the app itself** (`/app.html`, or the "Open the app" button) before
+installing — whichever page is on screen is the one that gets pinned.
+
 **iOS (Safari 16.4+):** open the site in **Safari** (not Chrome or an in-app
 browser), tap **Share** → **Add to Home Screen** → **Add**. Launch it from the
 homescreen icon to get the standalone window.
 
 **Android (Chrome):** open the site, tap **⋮** → **Install app** / **Add to Home
-screen**. Chrome may also show an install prompt on its own.
+screen**. Chrome may also show an install prompt on its own. Because the manifest
+sets `start_url` to `app.html`, an install started from the landing page still
+opens into the app.
 
 By default the app stays signed in, so it opens straight to your bookmarks. See
 [Staying signed in](#staying-signed-in) if you would rather be asked for your

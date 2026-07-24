@@ -10,7 +10,7 @@
  */
 
 // Bump on every deploy that changes a shell file, so clients pick it up.
-const CACHE = 'xbs-shell-v2';
+const CACHE = 'xbs-shell-v3';
 
 // Only what the running app needs to start offline. The larger icons and the
 // apple-touch-icons are install-time assets fetched by the OS, not by the page,
@@ -19,7 +19,10 @@ const CACHE = 'xbs-shell-v2';
 const SHELL = [
   './',
   './index.html',
+  './app.html',
   './manifest.webmanifest',
+  './css/theme.css',
+  './css/landing.css',
   './css/styles.css',
   './js/app.js',
   './js/api.js',
@@ -60,12 +63,20 @@ self.addEventListener('fetch', (event) => {
   // alone so the app's own freshness handling stays authoritative.
   if (url.origin !== self.location.origin) return;
 
-  // Navigations: network first, falling back to the cached shell when offline.
+  // Navigations: network first, falling back to the cached page when offline.
+  // Match the requested page itself first -- falling straight back to the
+  // landing page would strand someone who opened the app offline.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match('./index.html', { ignoreSearch: true }).then((cached) => cached || Response.error())
-      )
+      fetch(request).catch(async () => {
+        const cache = await caches.open(CACHE);
+        return (
+          (await cache.match(request, { ignoreSearch: true })) ||
+          (await cache.match('./app.html')) ||
+          (await cache.match('./index.html')) ||
+          Response.error()
+        );
+      })
     );
     return;
   }

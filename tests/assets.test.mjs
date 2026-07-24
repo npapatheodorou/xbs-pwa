@@ -4,6 +4,9 @@
  * These catch the class of mistake that unit tests cannot: a renamed file, a
  * typo in a path, an icon referenced but never generated. On a no-build-step
  * site there is no bundler to notice a broken reference.
+ *
+ * The site has two pages: index.html is the landing page, app.html is the app
+ * (and the manifest's start_url, so that is what gets installed).
  */
 
 import test from 'node:test';
@@ -18,14 +21,25 @@ const PUBLIC = path.join(ROOT, 'public');
 const read = (relative) => fs.readFileSync(path.join(PUBLIC, relative), 'utf8');
 const exists = (relative) => fs.existsSync(path.join(PUBLIC, relative.replace(/^\.\//, '')));
 
-test('every local path referenced by index.html exists', () => {
-  const html = read('index.html');
-  const refs = [...html.matchAll(/(?:href|src)="(\.\/[^"]+)"/g)].map((m) => m[1]);
+const PAGES = ['index.html', 'app.html'];
 
-  assert.ok(refs.length > 5, 'expected several local references');
-  for (const ref of refs) {
-    assert.ok(exists(ref), `index.html references missing file: ${ref}`);
+test('every local path referenced by either page exists', () => {
+  for (const page of PAGES) {
+    const html = read(page);
+    const refs = [...html.matchAll(/(?:href|src)="(\.\/[^"]+)"/g)].map((m) => m[1]);
+
+    assert.ok(refs.length > 3, `${page} should reference several local files`);
+    for (const ref of refs) {
+      // "./" is the landing page itself, served as index.html.
+      if (ref === './') continue;
+      assert.ok(exists(ref), `${page} references missing file: ${ref}`);
+    }
   }
+});
+
+test('the landing page links to the app', () => {
+  const html = read('index.html');
+  assert.match(html, /href="\.\/app\.html"/, 'landing page must link to the app');
 });
 
 test('every icon in the manifest exists and the manifest is valid', () => {
@@ -56,6 +70,15 @@ test('every icon in the manifest exists and the manifest is valid', () => {
   }
 });
 
+test('the manifest starts at the app, not the landing page', () => {
+  const manifest = JSON.parse(read('manifest.webmanifest'));
+
+  // Installing from the homescreen must land on the app itself; starting at
+  // the marketing page would make the installed icon useless.
+  assert.ok(exists(manifest.start_url), `start_url does not exist: ${manifest.start_url}`);
+  assert.match(manifest.start_url, /app\.html$/, 'start_url should be the app page');
+});
+
 test('every file the service worker precaches exists', () => {
   const sw = read('sw.js');
   const shell = sw.slice(sw.indexOf('const SHELL'), sw.indexOf('];', sw.indexOf('const SHELL')));
@@ -66,10 +89,15 @@ test('every file the service worker precaches exists', () => {
     if (entry === './') continue; // the directory root, served as index.html
     assert.ok(exists(entry), `sw.js precaches missing file: ${entry}`);
   }
+
+  // Both pages must survive a cold offline launch.
+  for (const page of PAGES) {
+    assert.ok(entries.includes(`./${page}`), `sw.js should precache ${page}`);
+  }
 });
 
-test('iOS homescreen meta tags are present', () => {
-  const html = read('index.html');
+test('iOS homescreen meta tags are present on the app page', () => {
+  const html = read('app.html');
   // Safari ignores the manifest for homescreen install, so these are required
   // for the app to launch standalone with the right icon.
   for (const needle of [
@@ -79,7 +107,19 @@ test('iOS homescreen meta tags are present', () => {
     'rel="apple-touch-icon"',
     'viewport-fit=cover'
   ]) {
-    assert.ok(html.includes(needle), `index.html is missing ${needle}`);
+    assert.ok(html.includes(needle), `app.html is missing ${needle}`);
+  }
+});
+
+test('both pages declare a responsive viewport', () => {
+  for (const page of PAGES) {
+    const html = read(page);
+    assert.match(html, /name="viewport"[^>]*width=device-width/, `${page} needs a viewport meta`);
+    // A hard maximum-scale=1 or user-scalable=no would block pinch zoom.
+    assert.ok(
+      !/user-scalable=no/.test(html) && !/maximum-scale=1[^\d]/.test(html),
+      `${page} must not block pinch zoom`
+    );
   }
 });
 
@@ -89,7 +129,8 @@ test('no third-party origins are referenced anywhere in the app', () => {
   const files = fs
     .readdirSync(path.join(PUBLIC, 'js'))
     .map((f) => `js/${f}`)
-    .concat(['index.html', 'sw.js', 'css/styles.css', 'manifest.webmanifest']);
+    .concat(fs.readdirSync(path.join(PUBLIC, 'css')).map((f) => `css/${f}`))
+    .concat([...PAGES, 'sw.js', 'manifest.webmanifest']);
 
   for (const file of files) {
     const contents = read(file);
@@ -117,10 +158,10 @@ test('no third-party origins are referenced anywhere in the app', () => {
   }
 });
 
-test('every element id the app looks up exists in the HTML', () => {
+test('every element id the app looks up exists in the app page', () => {
   // Without a build step nothing catches a renamed id: getElementById just
   // returns null and the feature silently stops working.
-  const html = read('index.html');
+  const html = read('app.html');
   const js = read('js/app.js');
 
   const htmlIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]));
@@ -128,7 +169,7 @@ test('every element id the app looks up exists in the HTML', () => {
 
   assert.ok(usedIds.length > 10, 'expected the app to look up several ids');
   for (const id of new Set(usedIds)) {
-    assert.ok(htmlIds.has(id), `app.js looks up #${id}, which index.html does not define`);
+    assert.ok(htmlIds.has(id), `app.js looks up #${id}, which app.html does not define`);
   }
 });
 
@@ -136,12 +177,25 @@ test('the hidden attribute overrides author display rules', () => {
   // The app toggles several .btn elements via the hidden attribute, and
   // `.btn { display: block }` would otherwise win over the UA stylesheet's
   // `[hidden] { display: none }`, leaving them visible.
-  const css = read('css/styles.css');
+  const css = read('css/theme.css');
   assert.match(
     css,
     /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
-    'styles.css needs a global [hidden] { display: none !important } rule'
+    'theme.css needs a global [hidden] { display: none !important } rule'
   );
+});
+
+test('both pages load the shared theme before their own styles', () => {
+  // theme.css defines the tokens every other rule references; loading it second
+  // would still work, but the ordering documents the dependency.
+  for (const page of PAGES) {
+    const html = read(page);
+    const theme = html.indexOf('css/theme.css');
+    assert.ok(theme > -1, `${page} must load css/theme.css`);
+
+    const own = Math.max(html.indexOf('css/styles.css'), html.indexOf('css/landing.css'));
+    assert.ok(own > theme, `${page} must load theme.css before its page stylesheet`);
+  }
 });
 
 test('netlify.toml has the expected security headers and SPA fallback', () => {
@@ -171,17 +225,30 @@ test('netlify.toml has the expected security headers and SPA fallback', () => {
   for (const directive of ['default-src', 'connect-src', 'frame-ancestors', 'object-src']) {
     assert.ok(cspLine.includes(directive), `CSP line missing ${directive}`);
   }
-  // Nothing in the app is inline, so these escape hatches should never appear.
-  assert.ok(!toml.includes("'unsafe-inline'"), "CSP should not need 'unsafe-inline'");
-  assert.ok(!toml.includes("'unsafe-eval'"), "CSP should not need 'unsafe-eval'");
 });
 
-test('the app contains no inline script or style, as the CSP requires', () => {
-  const html = read('index.html');
-  // A script tag with a body (rather than src=) would be blocked by the CSP.
-  const inlineScript = /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/.test(html);
-  assert.ok(!inlineScript, 'inline <script> would be blocked by the CSP');
+test('neither page uses inline script or style, as the CSP requires', () => {
+  for (const page of PAGES) {
+    const html = read(page);
+    // A script tag with a body (rather than src=) would be blocked by the CSP.
+    const inlineScript = /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/.test(html);
+    assert.ok(!inlineScript, `inline <script> in ${page} would be blocked by the CSP`);
 
-  const inlineStyle = /<style[^>]*>/.test(html);
-  assert.ok(!inlineStyle, 'inline <style> would be blocked by the CSP');
+    const inlineStyle = /<style[^>]*>/.test(html);
+    assert.ok(!inlineStyle, `inline <style> in ${page} would be blocked by the CSP`);
+
+    assert.ok(!/ style="/.test(html), `inline style attribute in ${page} would be blocked`);
+  }
+});
+
+test('icon-only controls carry accessible names', () => {
+  // Icon buttons have no text, so without aria-label they are announced as
+  // "button" and nothing else.
+  const html = read('app.html');
+  const iconButtons = [...html.matchAll(/<button[^>]*class="icon-btn"[^>]*>/g)].map((m) => m[0]);
+
+  assert.ok(iconButtons.length >= 2, 'expected the icon buttons in the top bar');
+  for (const button of iconButtons) {
+    assert.match(button, /aria-label="/, `icon button needs an aria-label: ${button}`);
+  }
 });

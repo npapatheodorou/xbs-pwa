@@ -2,245 +2,356 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- viewport-fit=cover + env() padding in the CSS keeps content clear of the
-         iPhone notch / home indicator when launched from the homescreen. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>xBrowserSync Bookmarks — an unofficial mobile client</title>
     <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+      name="description"
+      content="An unofficial, read-only PWA client for xBrowserSync. Install it to your iOS or Android homescreen. Your bookmarks are decrypted on-device; your password never leaves the browser."
     />
-    <title>xBrowserSync Bookmarks</title>
-    <meta name="description" content="An unofficial read-only mobile client for xBrowserSync." />
-
-    <!-- No referrers to third parties; this app only calls the configured service. -->
     <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#071519" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#1b6b7d" media="(prefers-color-scheme: light)" />
 
-    <meta name="theme-color" content="#1f2933" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#3b5bdb" media="(prefers-color-scheme: light)" />
-    <link rel="manifest" href="./manifest.webmanifest" />
-
-    <!-- iOS "Add to Home Screen": Safari ignores manifest.json for the icon and
-         for standalone behaviour, so these have to be declared separately. -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Bookmarks" />
-    <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon-180.png" />
-    <link rel="apple-touch-icon" sizes="167x167" href="./icons/apple-touch-icon-167.png" />
-    <link rel="apple-touch-icon" sizes="152x152" href="./icons/apple-touch-icon-152.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png" />
 
-    <link rel="stylesheet" href="./css/styles.css" />
+    <link rel="stylesheet" href="./css/theme.css" />
+    <link rel="stylesheet" href="./css/landing.css" />
   </head>
   <body>
-    <noscript class="noscript">
-      This app decrypts your bookmarks in your browser, so it needs JavaScript enabled.
-    </noscript>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-    <!-- ==================== Setup ==================== -->
-    <section id="view-setup" class="view" hidden>
-      <div class="scroll">
-        <div class="pane">
-          <header class="pane-header">
-            <img class="logo" src="./icons/icon-192.png" alt="" width="56" height="56" />
-            <h1>xBrowserSync</h1>
-            <p class="sub">
-              Unofficial read-only client. Your password never leaves this device.
+    <header class="nav" id="nav">
+      <div class="nav-inner">
+        <a class="brand" href="./">
+          <img src="./icons/icon-192.png" alt="" width="32" height="32" />
+          <span>xBrowserSync <span class="brand-dim">Bookmarks</span></span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#features">Features</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#install">Install</a>
+          <a href="#deploy">Self-host</a>
+        </nav>
+        <a class="btn btn-primary btn-sm nav-cta" href="./app.html">Open the app</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============================== Hero ============================== -->
+      <section class="hero">
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <p class="eyebrow">Unofficial third-party client</p>
+            <h1>Your xBrowserSync bookmarks, on your&nbsp;homescreen.</h1>
+            <p class="lede">
+              There is no official xBrowserSync app for iOS. This is a small, installable web app
+              that fetches your encrypted bookmarks and decrypts them
+              <strong>on your device</strong> — your password never leaves the browser.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary btn-lg" href="./app.html">Open the app</a>
+              <a
+                class="btn btn-ghost btn-lg"
+                href="https://github.com/xbrowsersync/app"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                About xBrowserSync
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M14 4h6v6" />
+                  <path d="M20 4 10 14" />
+                  <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                </svg>
+              </a>
+            </div>
+            <ul class="hero-badges">
+              <li>Read-only</li>
+              <li>No backend</li>
+              <li>No telemetry</li>
+              <li>Zero dependencies</li>
+            </ul>
+          </div>
+
+          <!-- Pure-CSS preview: no screenshots to keep the payload tiny and the
+               CSP free of external assets. -->
+          <div class="hero-preview" aria-hidden="true">
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="pv-top">
+                  <div class="pv-search"><span></span></div>
+                  <div class="pv-btn"></div>
+                  <div class="pv-btn"></div>
+                </div>
+                <div class="pv-status">Synced just now · changed 2h ago</div>
+                <div class="pv-list">
+                  <div class="pv-row pv-folder">
+                    <span class="pv-chev"></span>
+                    <span class="pv-ico"></span>
+                    <span class="pv-text pv-w-60"></span>
+                    <span class="pv-open"></span>
+                  </div>
+                  <div class="pv-row pv-indent">
+                    <span class="pv-ico pv-ico-link"></span>
+                    <span class="pv-lines">
+                      <span class="pv-text pv-w-70"></span>
+                      <span class="pv-sub pv-w-40"></span>
+                    </span>
+                    <span class="pv-ext"></span>
+                  </div>
+                  <div class="pv-row pv-indent">
+                    <span class="pv-ico pv-ico-link"></span>
+                    <span class="pv-lines">
+                      <span class="pv-text pv-w-50"></span>
+                      <span class="pv-sub pv-w-60"></span>
+                    </span>
+                    <span class="pv-ext"></span>
+                  </div>
+                  <div class="pv-row pv-folder">
+                    <span class="pv-chev"></span>
+                    <span class="pv-ico"></span>
+                    <span class="pv-text pv-w-45"></span>
+                    <span class="pv-open"></span>
+                  </div>
+                  <div class="pv-row pv-folder">
+                    <span class="pv-chev"></span>
+                    <span class="pv-ico"></span>
+                    <span class="pv-text pv-w-55"></span>
+                    <span class="pv-open"></span>
+                  </div>
+                  <div class="pv-row pv-indent">
+                    <span class="pv-ico pv-ico-link"></span>
+                    <span class="pv-lines">
+                      <span class="pv-text pv-w-65"></span>
+                      <span class="pv-sub pv-w-35"></span>
+                    </span>
+                    <span class="pv-ext"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ Features ============================ -->
+      <section class="section" id="features">
+        <div class="container">
+          <header class="section-head">
+            <h2>What it does</h2>
+            <p class="section-sub">
+              A focused reader for bookmarks you already sync. Nothing more, on purpose.
             </p>
           </header>
 
-          <form id="setup-form" novalidate>
-            <label class="field">
-              <span class="label">Service URL</span>
-              <input
-                id="setup-service-url"
-                type="url"
-                inputmode="url"
-                autocomplete="off"
-                autocapitalize="none"
-                autocorrect="off"
-                spellcheck="false"
-                required
-              />
-              <span class="hint">
-                The official service, or your own instance. Self-hosted instances must allow
-                cross-origin requests from this domain.
+          <ul class="cards">
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="4" y="10" width="16" height="11" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                </svg>
               </span>
-            </label>
-
-            <label class="field">
-              <span class="label">Sync ID</span>
-              <input
-                id="setup-sync-id"
-                type="text"
-                inputmode="latin"
-                autocomplete="off"
-                autocapitalize="none"
-                autocorrect="off"
-                spellcheck="false"
-                placeholder="32-character ID"
-                required
-              />
-              <span class="hint">Find this in the xBrowserSync browser extension.</span>
-            </label>
-
-            <label class="field">
-              <span class="label">Password</span>
-              <input id="setup-password" type="password" autocomplete="current-password" required />
-              <span class="hint">
-                Used only to decrypt, in this browser. It is never sent anywhere and never saved.
+              <h3>Decrypted on your device</h3>
+              <p>
+                PBKDF2 and AES-GCM run in your browser via the Web Crypto API, matching the official
+                client exactly. The service only ever hands over an encrypted blob.
+              </p>
+            </li>
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v13" />
+                  <path d="m7 12 5 5 5-5" />
+                  <path d="M4 20h16" />
+                </svg>
               </span>
-            </label>
-
-            <label class="check">
-              <input id="setup-remember" type="checkbox" checked />
-              <span>
-                <span class="check-label">Stay signed in on this device</span>
-                <span class="hint">
-                  Saves the decryption key derived from your password, so the app opens straight to
-                  your bookmarks. Your password itself is never saved. Leave this off to be asked
-                  for it each time.
-                </span>
+              <h3>Installs to your homescreen</h3>
+              <p>
+                Add to Home Screen on iOS Safari or Android Chrome and it launches standalone, with
+                no browser chrome — the closest thing to a native app.
+              </p>
+            </li>
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m16.5 16.5 4.5 4.5" />
+                </svg>
               </span>
-            </label>
+              <h3>Search everything</h3>
+              <p>
+                Filter across titles, URLs, descriptions and tags at once. Results show the folder
+                each bookmark came from, so a flat list still makes sense.
+              </p>
+            </li>
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                </svg>
+              </span>
+              <h3>Folders, and open-all</h3>
+              <p>
+                Browse your real hierarchy with collapsible folders — or open every bookmark in a
+                folder at once, each in its own tab.
+              </p>
+            </li>
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12.5a4.5 4.5 0 0 1 1.2-8.8 5.5 5.5 0 0 1 10.4 1.4A4 4 0 0 1 18 13" />
+                  <path d="M12 12v8" />
+                  <path d="m8.5 16.5 3.5-3.5 3.5 3.5" />
+                </svg>
+              </span>
+              <h3>Works offline</h3>
+              <p>
+                The last synced copy is cached — still encrypted — so it opens without a connection.
+                Stale data is always labelled as such, never passed off as fresh.
+              </p>
+            </li>
+            <li class="card">
+              <span class="card-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3 4 6v6c0 4.5 3.2 8.3 8 9 4.8-.7 8-4.5 8-9V6z" />
+                  <path d="m9 12 2 2 4-4" />
+                </svg>
+              </span>
+              <h3>Nothing phones home</h3>
+              <p>
+                No analytics, no telemetry, no third-party requests of any kind. The only host it
+                contacts is the xBrowserSync service you configure.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
 
-            <div class="notice notice-info">
-              <strong>What gets stored on this device:</strong> the service URL, the sync ID, your
-              bookmarks in their encrypted form, and — while you stay signed in — the decryption
-              key. Anyone who can read this browser's storage could use them, so avoid this on a
-              shared device.
+      <!-- ============================= Privacy ============================ -->
+      <section class="section section-alt" id="privacy">
+        <div class="container">
+          <div class="split">
+            <div class="split-copy">
+              <h2>Your password never leaves the browser</h2>
+              <p class="section-sub">
+                xBrowserSync is anonymous and end-to-end encrypted by design. This client preserves
+                that: the server sees an opaque blob and a sync ID, and nothing else.
+              </p>
+              <ol class="steps">
+                <li>
+                  <strong>Derive</strong>
+                  <span>
+                    Your password and sync ID go through PBKDF2-SHA256, 250,000 rounds, in-page.
+                  </span>
+                </li>
+                <li>
+                  <strong>Fetch</strong>
+                  <span>
+                    The app requests the encrypted blob. Only the sync ID crosses the network.
+                  </span>
+                </li>
+                <li>
+                  <strong>Decrypt</strong>
+                  <span>
+                    AES-GCM, then LZ-UTF8 decompression, then render. All locally, every time.
+                  </span>
+                </li>
+              </ol>
             </div>
 
-            <p id="setup-error" class="error" role="alert" hidden></p>
-
-            <button id="setup-submit" class="btn btn-primary" type="submit">
-              Connect and decrypt
-            </button>
-          </form>
+            <div class="panel">
+              <h3 class="panel-title">Stored on your device</h3>
+              <ul class="ledger">
+                <li class="yes"><span>Service URL</span></li>
+                <li class="yes"><span>Sync ID</span></li>
+                <li class="yes"><span>Bookmarks, still encrypted</span></li>
+                <li class="yes"><span>Decryption key, only if you stay signed in</span></li>
+              </ul>
+              <h3 class="panel-title">Never stored, never sent</h3>
+              <ul class="ledger">
+                <li class="no"><span>Your password</span></li>
+                <li class="no"><span>Decrypted bookmarks</span></li>
+              </ul>
+              <p class="panel-note">
+                Local storage is not encrypted at rest. On a shared device, untick “stay signed in”
+                so a password is required each launch.
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ==================== Unlock ==================== -->
-    <section id="view-unlock" class="view" hidden>
-      <div class="scroll">
-        <div class="pane">
-          <header class="pane-header">
-            <img class="logo" src="./icons/icon-192.png" alt="" width="56" height="56" />
-            <h1>Unlock</h1>
-            <p class="sub">
-              Sync <code id="unlock-sync-id"></code><br /><span id="unlock-service"></span>
+      <!-- ============================= Install ============================ -->
+      <section class="section" id="install">
+        <div class="container">
+          <header class="section-head">
+            <h2>Add it to your homescreen</h2>
+            <p class="section-sub">
+              You will need your sync ID and password from the xBrowserSync browser extension.
             </p>
           </header>
 
-          <form id="unlock-form" novalidate>
-            <label class="field">
-              <span class="label">Password</span>
-              <!-- autofocus is deliberately omitted: on iOS it forces the keyboard
-                   up before the standalone window has settled. -->
-              <input id="unlock-password" type="password" autocomplete="current-password" required />
-            </label>
-
-            <label class="check">
-              <input id="unlock-remember" type="checkbox" />
-              <span>
-                <span class="check-label">Stay signed in on this device</span>
-              </span>
-            </label>
-
-            <p id="unlock-error" class="error" role="alert" hidden></p>
-
-            <button id="unlock-submit" class="btn btn-primary" type="submit">Unlock</button>
-            <button id="unlock-forget" class="btn btn-quiet" type="button">Use a different sync</button>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- ==================== Bookmarks ==================== -->
-    <section id="view-bookmarks" class="view" hidden>
-      <header class="topbar">
-        <div class="topbar-row">
-          <div class="search-wrap">
-            <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" />
-              <line x1="16.5" y1="16.5" x2="21" y2="21" />
-            </svg>
-            <input
-              id="search"
-              type="search"
-              placeholder="Search bookmarks"
-              autocomplete="off"
-              autocapitalize="none"
-              autocorrect="off"
-              spellcheck="false"
-              aria-label="Search bookmarks"
-            />
-            <button id="search-clear" class="search-clear" type="button" aria-label="Clear search" hidden>
-              &times;
-            </button>
+          <div class="two-col">
+            <article class="guide">
+              <h3>iOS &amp; iPadOS</h3>
+              <ol>
+                <li>Open this site in <strong>Safari</strong> — not Chrome or an in-app browser.</li>
+                <li>Tap <strong>Open the app</strong> above.</li>
+                <li>Tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</li>
+                <li>Launch it from the new icon to get a standalone window.</li>
+              </ol>
+            </article>
+            <article class="guide">
+              <h3>Android</h3>
+              <ol>
+                <li>Open this site in <strong>Chrome</strong>.</li>
+                <li>Tap <strong>Open the app</strong> above.</li>
+                <li>
+                  Tap the <strong>⋮</strong> menu, then <strong>Install app</strong>. Chrome may
+                  offer this on its own.
+                </li>
+                <li>Launch it from the new icon.</li>
+              </ol>
+            </article>
           </div>
-          <button id="sync-now" class="icon-btn" type="button" aria-label="Sync now" title="Sync now">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 12a8 8 0 1 1-2.34-5.66" />
-              <polyline points="20 4 20 10 14 10" />
-            </svg>
-          </button>
-          <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu" aria-haspopup="true">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="5" r="1.6" />
-              <circle cx="12" cy="12" r="1.6" />
-              <circle cx="12" cy="19" r="1.6" />
-            </svg>
-          </button>
         </div>
-        <div id="status-bar" class="status" role="status"></div>
-      </header>
+      </section>
 
-      <!-- Pull-to-refresh indicator, driven by touch handlers in app.js -->
-      <div id="ptr" class="ptr" aria-hidden="true"><span id="ptr-label">Pull to refresh</span></div>
+      <!-- ============================= Deploy ============================= -->
+      <section class="section section-alt" id="deploy">
+        <div class="container narrow">
+          <header class="section-head">
+            <h2>Run your own copy</h2>
+            <p class="section-sub">
+              It is a static site with no backend. Point Netlify at the repository and it deploys as
+              is — HTTPS included, which the Web Crypto API and PWA install both require.
+            </p>
+          </header>
+          <div class="callout">
+            <p>
+              Works with the official service or any self-hosted xBrowserSync instance that allows
+              cross-origin requests. Nothing about this client is tied to a particular host.
+            </p>
+          </div>
+          <div class="center">
+            <a class="btn btn-primary btn-lg" href="./app.html">Open the app</a>
+          </div>
+        </div>
+      </section>
+    </main>
 
-      <main id="scroller" class="scroll">
-        <div id="tree" class="tree"></div>
-        <div id="empty-state" class="empty" hidden></div>
-        <div class="footer-space"></div>
-      </main>
-    </section>
-
-    <!-- ==================== Menu sheet ==================== -->
-    <div id="sheet-backdrop" class="sheet-backdrop" hidden>
-      <div class="sheet" role="dialog" aria-modal="true" aria-label="Menu">
-        <dl class="sheet-info">
-          <dt>Service</dt>
-          <dd id="sheet-service"></dd>
-          <dt>Sync ID</dt>
-          <dd id="sheet-sync-id" class="mono"></dd>
-          <dt>Last synced</dt>
-          <dd id="sheet-last-synced"></dd>
-          <dt>Bookmarks</dt>
-          <dd id="sheet-count"></dd>
-          <dt>Signed in</dt>
-          <dd id="sheet-signed-in"></dd>
-        </dl>
-        <button id="sheet-expand" class="btn btn-quiet" type="button">Expand all folders</button>
-        <button id="sheet-collapse" class="btn btn-quiet" type="button">Collapse all folders</button>
-        <!-- Only one of these is shown, depending on whether a key is saved. -->
-        <button id="sheet-sign-out" class="btn btn-quiet" type="button" hidden>
-          Sign out (ask for password next time)
-        </button>
-        <button id="sheet-lock" class="btn btn-quiet" type="button">Lock</button>
-        <button id="sheet-logout" class="btn btn-danger" type="button">Forget this sync</button>
-        <button id="sheet-close" class="btn btn-quiet" type="button">Close</button>
+    <footer class="footer">
+      <div class="container">
+        <p class="disclaimer">
+          <strong>Unofficial and unaffiliated.</strong> This project is not endorsed by or connected
+          to the xBrowserSync project. Please do not report issues with this client to their tracker.
+        </p>
+        <p class="footer-meta">
+          xBrowserSync is free software by Nick Bolton and contributors. This client is MIT licensed
+          and talks only to the service you configure.
+        </p>
       </div>
-    </div>
-
-    <!-- ==================== Busy overlay ==================== -->
-    <div id="busy" class="busy" hidden>
-      <div class="spinner" aria-hidden="true"></div>
-      <p id="busy-label">Working…</p>
-    </div>
-
-    <script type="module" src="./js/app.js"></script>
+    </footer>
   </body>
 </html>

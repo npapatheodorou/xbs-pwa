@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- viewport-fit=cover + env() padding in the CSS keeps content clear of the
+         iPhone notch / home indicator when launched from the homescreen. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5"
+    />
+    <title>xBrowserSync Bookmarks</title>
+    <meta name="description" content="An unofficial read-only mobile client for xBrowserSync." />
+
+    <!-- No referrers to third parties; this app only calls the configured service. -->
+    <meta name="referrer" content="no-referrer" />
+
+    <meta name="theme-color" content="#071519" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#1b6b7d" media="(prefers-color-scheme: light)" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+
+    <!-- iOS "Add to Home Screen": Safari ignores manifest.json for the icon and
+         for standalone behaviour, so these have to be declared separately. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bookmarks" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon-180.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon-180.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="./icons/apple-touch-icon-167.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="./icons/apple-touch-icon-152.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
+
+    <link rel="stylesheet" href="./css/theme.css" />
+    <link rel="stylesheet" href="./css/styles.css" />
+  </head>
+  <body>
+    <noscript class="noscript">
+      This app decrypts your bookmarks in your browser, so it needs JavaScript enabled.
+    </noscript>
+
+    <!-- ==================== Setup ==================== -->
+    <section id="view-setup" class="view" hidden>
+      <div class="scroll">
+        <div class="pane">
+          <header class="pane-header">
+            <img class="logo" src="./icons/icon-192.png" alt="" width="64" height="64" />
+            <h1>xBrowserSync</h1>
+            <p class="sub">
+              Unofficial read-only client. Your password never leaves this device.
+            </p>
+          </header>
+
+          <form id="setup-form" novalidate>
+            <label class="field">
+              <span class="label">Service URL</span>
+              <input
+                id="setup-service-url"
+                type="url"
+                inputmode="url"
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                required
+              />
+              <span class="hint">
+                The official service, or your own instance. Self-hosted instances must allow
+                cross-origin requests from this domain.
+              </span>
+            </label>
+
+            <label class="field">
+              <span class="label">Sync ID</span>
+              <input
+                id="setup-sync-id"
+                type="text"
+                inputmode="latin"
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="32-character ID"
+                required
+              />
+              <span class="hint">Find this in the xBrowserSync browser extension.</span>
+            </label>
+
+            <label class="field">
+              <span class="label">Password</span>
+              <input id="setup-password" type="password" autocomplete="current-password" required />
+              <span class="hint">
+                Used only to decrypt, in this browser. It is never sent anywhere and never saved.
+              </span>
+            </label>
+
+            <label class="check">
+              <input id="setup-remember" type="checkbox" checked />
+              <span>
+                <span class="check-label">Stay signed in on this device</span>
+                <span class="hint">
+                  Saves the decryption key derived from your password, so the app opens straight to
+                  your bookmarks. Your password itself is never saved. Leave this off to be asked
+                  for it each time.
+                </span>
+              </span>
+            </label>
+
+            <div class="notice notice-info">
+              <strong>What gets stored on this device:</strong> the service URL, the sync ID, your
+              bookmarks in their encrypted form, and — while you stay signed in — the decryption
+              key. Anyone who can read this browser's storage could use them, so avoid this on a
+              shared device.
+            </div>
+
+            <p id="setup-error" class="error" role="alert" hidden></p>
+
+            <button id="setup-submit" class="btn btn-primary" type="submit">
+              Connect and decrypt
+            </button>
+            <p class="pane-foot"><a href="./">What is this?</a></p>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== Unlock ==================== -->
+    <section id="view-unlock" class="view" hidden>
+      <div class="scroll">
+        <div class="pane">
+          <header class="pane-header">
+            <img class="logo" src="./icons/icon-192.png" alt="" width="64" height="64" />
+            <h1>Unlock</h1>
+            <p class="sub">
+              Sync <code id="unlock-sync-id"></code><br /><span id="unlock-service"></span>
+            </p>
+          </header>
+
+          <form id="unlock-form" novalidate>
+            <label class="field">
+              <span class="label">Password</span>
+              <!-- autofocus is deliberately omitted: on iOS it forces the keyboard
+                   up before the standalone window has settled. -->
+              <input id="unlock-password" type="password" autocomplete="current-password" required />
+            </label>
+
+            <label class="check">
+              <input id="unlock-remember" type="checkbox" />
+              <span>
+                <span class="check-label">Stay signed in on this device</span>
+              </span>
+            </label>
+
+            <p id="unlock-error" class="error" role="alert" hidden></p>
+
+            <button id="unlock-submit" class="btn btn-primary" type="submit">Unlock</button>
+            <button id="unlock-forget" class="btn btn-quiet" type="button">
+              Use a different sync
+            </button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== Bookmarks ==================== -->
+    <section id="view-bookmarks" class="view" hidden>
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="topbar-row">
+            <div class="search-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="16.5" y1="16.5" x2="21" y2="21" />
+              </svg>
+              <input
+                id="search"
+                type="search"
+                placeholder="Search bookmarks"
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                aria-label="Search bookmarks"
+              />
+              <button
+                id="search-clear"
+                class="search-clear"
+                type="button"
+                aria-label="Clear search"
+                hidden
+              >
+                &times;
+              </button>
+            </div>
+            <button id="sync-now" class="icon-btn" type="button" aria-label="Sync now" title="Sync now">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+                <polyline points="20 4 20 10 14 10" />
+              </svg>
+            </button>
+            <button id="menu-btn" class="icon-btn" type="button" aria-label="Menu" aria-haspopup="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="5" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="12" cy="19" r="1.6" />
+              </svg>
+            </button>
+          </div>
+          <div id="status-bar" class="status" role="status"></div>
+        </div>
+      </header>
+
+      <!-- Pull-to-refresh indicator, driven by touch handlers in app.js -->
+      <div id="ptr" class="ptr" aria-hidden="true"><span id="ptr-label">Pull to refresh</span></div>
+
+      <main id="scroller" class="scroll">
+        <div class="tree-wrap">
+          <div id="tree" class="tree"></div>
+          <div id="empty-state" class="empty" hidden></div>
+        </div>
+        <div class="footer-space"></div>
+      </main>
+    </section>
+
+    <!-- ==================== Menu sheet ==================== -->
+    <div id="sheet-backdrop" class="sheet-backdrop" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="Menu">
+        <dl class="sheet-info">
+          <dt>Service</dt>
+          <dd id="sheet-service"></dd>
+          <dt>Sync ID</dt>
+          <dd id="sheet-sync-id" class="mono"></dd>
+          <dt>Last synced</dt>
+          <dd id="sheet-last-synced"></dd>
+          <dt>Bookmarks</dt>
+          <dd id="sheet-count"></dd>
+          <dt>Signed in</dt>
+          <dd id="sheet-signed-in"></dd>
+        </dl>
+        <button id="sheet-expand" class="btn btn-quiet" type="button">Expand all folders</button>
+        <button id="sheet-collapse" class="btn btn-quiet" type="button">Collapse all folders</button>
+        <!-- Only one of these is shown, depending on whether a key is saved. -->
+        <button id="sheet-sign-out" class="btn btn-quiet" type="button" hidden>
+          Sign out (ask for password next time)
+        </button>
+        <button id="sheet-lock" class="btn btn-quiet" type="button">Lock</button>
+        <button id="sheet-logout" class="btn btn-danger" type="button">Forget this sync</button>
+        <button id="sheet-close" class="btn btn-quiet" type="button">Close</button>
+      </div>
+    </div>
+
+    <!-- ==================== Busy overlay ==================== -->
+    <div id="busy" class="busy" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="busy-label">Working…</p>
+    </div>
+
+    <!-- Announces results that are otherwise only visible as new tabs. -->
+    <div id="live" class="visually-hidden" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

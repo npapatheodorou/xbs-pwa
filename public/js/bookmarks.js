@@ -60,6 +60,27 @@ export function displayHost(url) {
 }
 
 /**
+ * Every openable bookmark inside a folder, including nested subfolders.
+ *
+ * Separators and anything with an unsupported URL scheme are skipped, so the
+ * result is exactly the set that "open all" can actually open.
+ *
+ * @param {object} node a folder node
+ * @returns {Array} bookmark nodes in display order
+ */
+export function collectOpenable(node) {
+  const found = [];
+  const walk = (list) => {
+    for (const child of sortedChildren({ children: list })) {
+      if (isFolder(child)) walk(child.children);
+      else if (!isSeparator(child) && child.url && isSafeUrl(child.url)) found.push(child);
+    }
+  };
+  walk(node?.children);
+  return found;
+}
+
+/**
  * Total number of non-separator bookmarks in a tree.
  * @param {Array} nodes
  */

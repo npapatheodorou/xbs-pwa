@@ -14,6 +14,7 @@ import * as api from './api.js';
 import * as store from './store.js';
 import { deriveKey, decryptBookmarks, exportKey, importKey } from './crypto.js';
 import {
+  collectOpenable,
   countBookmarks,
   displayHost,
   displayTitle,
@@ -70,6 +71,21 @@ function showError(el, message) {
   el.hidden = !message;
 }
 
+/**
+ * Announce something to assistive technology.
+ * Opening tabs produces no visible change in this window, so without this a
+ * screen-reader user gets no confirmation that anything happened.
+ */
+function announce(message) {
+  const live = $('live');
+  if (!live) return;
+  // Clearing first guarantees the live region fires even for a repeat message.
+  live.textContent = '';
+  setTimeout(() => {
+    live.textContent = message;
+  }, 50);
+}
+
 /* -------------------------------------------------------------- rendering */
 
 function iconSvg(paths, className) {
@@ -91,6 +107,19 @@ const LINK_ICON = [
   'M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1'
 ];
 const CHEVRON = ['M9 6l6 6-6 6'];
+
+/** Arrow leaving a box: the standard "opens in a new tab" marker. */
+const EXTERNAL_ICON = [
+  'M14 4h6v6',
+  'M20 4 10 14',
+  'M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'
+];
+
+/** Stacked windows: open everything in this folder, each in its own tab. */
+const OPEN_ALL_ICON = [
+  'M8 3h11a2 2 0 0 1 2 2v11',
+  'M4 7h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z'
+];
 
 /** Build the row for a single bookmark. */
 function bookmarkRow(node, pathLabel) {
@@ -143,11 +172,60 @@ function bookmarkRow(node, pathLabel) {
 
   row.appendChild(body);
 
-  if (!safe && node.url) {
+  if (safe) {
+    // Marks the row as leaving the app. Decorative only -- the surrounding
+    // anchor already conveys the destination to assistive technology.
+    row.appendChild(iconSvg(EXTERNAL_ICON, 'row-ext'));
+  } else if (node.url) {
     // Non-navigable scheme: show it, but do not make it clickable.
     row.title = `Unsupported link type: ${node.url}`;
   }
   return row;
+}
+
+/**
+ * Open every bookmark in a folder, each in its own tab.
+ *
+ * Browsers only allow multiple `window.open` calls while handling a user
+ * gesture, so they are issued synchronously from the click handler. Popup
+ * blockers may still refuse some, which is why the result is counted and
+ * reported rather than assumed.
+ */
+function openAllInFolder(node) {
+  const targets = collectOpenable(node);
+  const label = displayTitle(node);
+
+  if (!targets.length) {
+    announce(`“${label}” has no bookmarks to open.`);
+    return;
+  }
+
+  // Opening dozens of tabs at once is rarely intended, and on mobile it can
+  // wedge the browser. Confirm before anything drastic.
+  const MANY = 10;
+  if (
+    targets.length > MANY &&
+    !confirm(`Open all ${targets.length} bookmarks in “${label}” in separate tabs?`)
+  ) {
+    return;
+  }
+
+  let opened = 0;
+  for (const bookmark of targets) {
+    const win = window.open(bookmark.url, '_blank', 'noopener,noreferrer');
+    if (win) opened++;
+  }
+
+  if (opened === targets.length) {
+    announce(`Opened ${opened} ${opened === 1 ? 'tab' : 'tabs'} from “${label}”.`);
+  } else if (opened === 0) {
+    announce('Your browser blocked the new tabs. Allow pop-ups for this site and try again.');
+    alert(
+      'Your browser blocked the new tabs.\n\nAllow pop-ups for this site to use "open all", or open bookmarks individually.'
+    );
+  } else {
+    announce(`Opened ${opened} of ${targets.length} tabs; the rest were blocked.`);
+  }
 }
 
 /** Build a collapsible folder row plus its (lazily rendered) children. */
@@ -172,9 +250,10 @@ function folderRow(node, path) {
   body.appendChild(title);
   row.appendChild(body);
 
+  const total = countBookmarks(node.children);
   const count = document.createElement('span');
   count.className = 'row-count';
-  count.textContent = String(countBookmarks(node.children));
+  count.textContent = String(total);
   row.appendChild(count);
 
   const childrenEl = document.createElement('div');
@@ -198,7 +277,31 @@ function folderRow(node, path) {
     row.setAttribute('aria-expanded', String(nowOpen));
   });
 
-  fragment.appendChild(row);
+  // The open-all control is a sibling of the toggle, not a child of it: a
+  // button inside a button is invalid HTML and breaks keyboard navigation.
+  const group = document.createElement('div');
+  group.className = 'row-group';
+  group.appendChild(row);
+
+  if (total > 0) {
+    const openAll = document.createElement('button');
+    openAll.type = 'button';
+    openAll.className = 'row-open-all';
+    openAll.title = `Open all ${total} in new tabs`;
+    openAll.setAttribute(
+      'aria-label',
+      `Open all ${total} bookmarks in ${displayTitle(node)} in new tabs`
+    );
+    openAll.appendChild(iconSvg(OPEN_ALL_ICON, ''));
+    openAll.addEventListener('click', (event) => {
+      // Without this the click bubbles to the row and toggles the folder.
+      event.stopPropagation();
+      openAllInFolder(node);
+    });
+    group.appendChild(openAll);
+  }
+
+  fragment.appendChild(group);
   fragment.appendChild(childrenEl);
   return fragment;
 }

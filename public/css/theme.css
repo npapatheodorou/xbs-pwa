@@ -1,0 +1,158 @@
+/**
+ * Shared design tokens for the landing page and the app.
+ *
+ * The palette is taken from the app icon: the isometric cubes and the green-to
+ * -cyan gradient behind them. Every text/background pairing below clears WCAG
+ * AA (4.5:1) in both light and dark themes.
+ */
+
+:root {
+  /* Brand colours, sampled from the logo artwork */
+  --brand-navy: #0a323d;
+  --brand-teal: #267d91;
+  --brand-cyan: #71d2e2;
+  --brand-green: #01ab8a;
+  --brand-sky: #35c6e8;
+
+  --brand-gradient: linear-gradient(135deg, var(--brand-green) 0%, var(--brand-sky) 100%);
+
+  /* Light theme */
+  --bg: #f4f8f9;
+  --bg-alt: #e9f1f3;
+  --surface: #ffffff;
+  --surface-2: #f1f6f7;
+  --text: #0a323d;
+  --text-dim: #4d6b75; /* 5.6:1 on white */
+  --border: #d3e2e6;
+  --border-strong: #b9d0d6;
+  --accent: #1b6b7d; /* 6.0:1 on white */
+  --accent-hover: #14515f;
+  --accent-soft: #e4f1f4;
+  --accent-contrast: #ffffff;
+  --danger: #b02525;
+  --danger-soft: #fdecec;
+  --warn-bg: #fff6e6;
+  --warn-border: #f0cd93;
+  --warn-text: #6f4708;
+
+  --shadow-sm: 0 1px 2px rgba(10, 50, 61, 0.06), 0 1px 3px rgba(10, 50, 61, 0.08);
+  --shadow-md: 0 4px 12px rgba(10, 50, 61, 0.08), 0 2px 4px rgba(10, 50, 61, 0.04);
+  --shadow-lg: 0 18px 40px rgba(10, 50, 61, 0.14), 0 4px 12px rgba(10, 50, 61, 0.08);
+
+  /* Scale */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+  --tap: 44px; /* minimum comfortable touch target */
+
+  /* Layout */
+  --page-max: 1200px;
+  --prose-max: 68ch;
+
+  /* z-index scale, so stacking never has to be guessed */
+  --z-sticky: 10;
+  --z-overlay: 20;
+  --z-modal: 30;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #071519;
+    --bg-alt: #0a1f26;
+    --surface: #0e2831;
+    --surface-2: #14343f;
+    --text: #e6f2f5;
+    --text-dim: #92aeb7; /* 6.7:1 on --surface */
+    --border: #1e3f4a;
+    --border-strong: #2a5462;
+    --accent: #5cc7dd; /* 7.9:1 on --surface */
+    --accent-hover: #8adcec;
+    --accent-soft: #12303a;
+    --accent-contrast: #04181d;
+    --danger: #ff9a9a;
+    --danger-soft: #2c1618;
+    --warn-bg: #2e2410;
+    --warn-border: #5c4a1e;
+    --warn-text: #f2d9a4;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* ----------------------------------------------------------------- reset */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Author rules that set `display` beat the UA stylesheet's [hidden] rule, so
+ * make the attribute authoritative for everything the app toggles. */
+[hidden] {
+  display: none !important;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0;
+  /* Fluid headings: scale with the viewport instead of stepping at breakpoints */
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--brand-cyan);
+  color: var(--brand-navy);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
