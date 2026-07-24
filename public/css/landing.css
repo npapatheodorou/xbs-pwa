@@ -109,16 +109,24 @@
   color: var(--accent);
 }
 
+/* The theme button is the first of the right-hand group; its auto margin pushes
+   both it and the CTA to the right on mobile. On desktop the centred nav-links
+   handle spacing, so it resets to 0. */
+.nav-theme {
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+}
+
 .nav-cta {
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
 @media (min-width: 900px) {
   .nav-links {
     display: flex;
   }
-  .nav-cta {
+  .nav-theme {
     margin-left: 0;
   }
 }

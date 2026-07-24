@@ -198,6 +198,48 @@ test('both pages load the shared theme before their own styles', () => {
   }
 });
 
+test('both pages load the theme controller synchronously in <head>', () => {
+  for (const page of PAGES) {
+    const html = read(page);
+    const tag = html.match(/<script[^>]*js\/theme\.js[^>]*><\/script>/);
+    assert.ok(tag, `${page} must load js/theme.js`);
+    // Must be a blocking classic script (no defer/async/module) so the saved
+    // theme is applied before the body paints — otherwise the wrong theme flashes.
+    assert.ok(
+      !/\b(defer|async)\b|type=["']module["']/.test(tag[0]),
+      `${page}: theme.js must be a blocking classic script, got: ${tag[0]}`
+    );
+    assert.ok(html.indexOf('js/theme.js') < html.indexOf('</head>'), `${page}: theme.js must be in <head>`);
+  }
+});
+
+test('the service worker precaches the theme controller', () => {
+  const sw = read('sw.js');
+  const shell = sw.slice(sw.indexOf('const SHELL'), sw.indexOf('];', sw.indexOf('const SHELL')));
+  assert.ok(shell.includes("'./js/theme.js'"), 'sw.js should precache js/theme.js');
+});
+
+test('an explicit theme choice can override the OS preference', () => {
+  const css = read('css/theme.css');
+  assert.match(css, /:root\[data-theme=['"]dark['"]\]/, 'need a forced-dark selector');
+  assert.match(css, /:root\[data-theme=['"]light['"]\]/, 'need a forced-light selector');
+  // System-dark must be gated so a forced light choice still wins.
+  assert.match(
+    css,
+    /prefers-color-scheme: dark[\s\S]*?:root:not\(\[data-theme=['"]light['"]\]\)/,
+    'system-dark palette must be gated by :not([data-theme=light])'
+  );
+});
+
+test('every page with a theme control also loads theme.js', () => {
+  for (const page of PAGES) {
+    const html = read(page);
+    if (/data-theme-cycle|data-theme-value/.test(html)) {
+      assert.ok(html.includes('js/theme.js'), `${page} has a theme control but does not load theme.js`);
+    }
+  }
+});
+
 test('netlify.toml has the expected security headers and SPA fallback', () => {
   const toml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
 

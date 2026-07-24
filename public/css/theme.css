@@ -7,6 +7,10 @@
  */
 
 :root {
+  /* Theme the UA (form controls, scrollbars) to match. Pinned per-theme below
+     when the user forces a choice. */
+  color-scheme: light dark;
+
   /* Brand colours, sampled from the logo artwork */
   --brand-navy: #0a323d;
   --brand-teal: #267d91;
@@ -61,8 +65,17 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+/*
+ * Dark palette.
+ *
+ * There are two identical blocks below -- KEEP THEM IN SYNC. One applies when
+ * the OS prefers dark and the user has not forced light; the other applies when
+ * the user explicitly picks dark, regardless of OS. The attribute selectors
+ * outweigh the plain :root in the media query, so an explicit choice always
+ * wins. (A theme.js sets data-theme on <html>; with no attribute, the OS decides.)
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #071519;
     --bg-alt: #0a1f26;
     --surface: #0e2831;
@@ -85,6 +98,38 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
     --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.55);
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #071519;
+  --bg-alt: #0a1f26;
+  --surface: #0e2831;
+  --surface-2: #14343f;
+  --text: #e6f2f5;
+  --text-dim: #92aeb7;
+  --border: #1e3f4a;
+  --border-strong: #2a5462;
+  --accent: #5cc7dd;
+  --accent-hover: #8adcec;
+  --accent-soft: #12303a;
+  --accent-contrast: #04181d;
+  --danger: #ff9a9a;
+  --danger-soft: #2c1618;
+  --warn-bg: #2e2410;
+  --warn-border: #5c4a1e;
+  --warn-text: #f2d9a4;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Pin the UA colour-scheme when the user forces a theme. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 /* ----------------------------------------------------------------- reset */
@@ -155,4 +200,109 @@ svg {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ---------------------------------------------------- theme controls ---- */
+
+/* Single icon button (nav, setup/unlock panes) that cycles System→Light→Dark.
+   theme.js sets data-state; CSS shows the one matching icon. */
+.theme-cycle {
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 200ms, border-color 200ms, color 200ms;
+}
+
+.theme-cycle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-cycle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Show only the icon for the current choice. */
+.theme-cycle .theme-ico {
+  display: none;
+}
+.theme-cycle[data-state='system'] .theme-ico-system,
+.theme-cycle[data-state='light'] .theme-ico-light,
+.theme-cycle[data-state='dark'] .theme-ico-dark {
+  display: block;
+}
+
+/* Segmented control (app menu sheet): System | Light | Dark. */
+.theme-seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.theme-seg button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 38px;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms, color 150ms, box-shadow 150ms;
+}
+
+.theme-seg button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-seg button:hover {
+  color: var(--text);
+}
+
+.theme-seg button.is-active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Label used above the segmented control in the sheet. */
+.theme-seg-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }

@@ -61,6 +61,17 @@ body {
     calc(var(--safe-bottom) + 2rem) max(1.25rem, var(--safe-left));
 }
 
+/* Theme toggle floating in the corner of the pre-login screens (which have no
+   top bar of their own). */
+.app-theme-float {
+  position: absolute;
+  top: calc(var(--safe-top) + 0.75rem);
+  right: calc(var(--safe-right) + 0.75rem);
+  z-index: var(--z-sticky);
+  width: 40px;
+  height: 40px;
+}
+
 /* On a tall desktop window, centre the card rather than pinning it to the top. */
 @media (min-height: 780px) and (min-width: 720px) {
   .pane {

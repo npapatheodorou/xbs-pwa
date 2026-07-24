@@ -10,7 +10,7 @@
  */
 
 // Bump on every deploy that changes a shell file, so clients pick it up.
-const CACHE = 'xbs-shell-v3';
+const CACHE = 'xbs-shell-v4';
 
 // Only what the running app needs to start offline. The larger icons and the
 // apple-touch-icons are install-time assets fetched by the OS, not by the page,
@@ -24,6 +24,7 @@ const SHELL = [
   './css/theme.css',
   './css/landing.css',
   './css/styles.css',
+  './js/theme.js',
   './js/app.js',
   './js/api.js',
   './js/crypto.js',
