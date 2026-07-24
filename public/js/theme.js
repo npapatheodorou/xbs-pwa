@@ -64,7 +64,21 @@
     syncControls();
   }
 
-  var ORDER = ['system', 'light', 'dark'];
+  /**
+   * The next preference when the cycle button is tapped.
+   *
+   * 'system' and whichever of light/dark matches the OS look identical, so a
+   * naive system→light→dark order makes the first tap a no-op for anyone whose
+   * OS already matches (most people, on a light OS). The order here is chosen
+   * so the FIRST step away from any state visibly flips the theme; only the wrap
+   * back to 'system' can match the OS appearance, and even then the icon changes.
+   */
+  function nextPref() {
+    var cur = saved();
+    var sysDark = mql && mql.matches;
+    var order = sysDark ? ['system', 'light', 'dark'] : ['system', 'dark', 'light'];
+    return order[(order.indexOf(cur) + 1) % order.length];
+  }
 
   /** Reflect the current choice in every control on the page. */
   function syncControls() {
@@ -91,8 +105,7 @@
     var cycles = document.querySelectorAll('[data-theme-cycle]');
     for (var i = 0; i < cycles.length; i++) {
       cycles[i].addEventListener('click', function () {
-        var next = ORDER[(ORDER.indexOf(saved()) + 1) % ORDER.length];
-        set(next);
+        set(nextPref());
       });
     }
 
