@@ -20,7 +20,9 @@ modules. Nothing is bundled, minified or transpiled.
   titles, URLs, descriptions and tags
 - Marks every bookmark with an external-link icon, since tapping one leaves the
   app, and gives each folder an **open-all** action that opens every bookmark it
-  contains — including nested subfolders — in its own tab
+  contains — including nested subfolders — in its own tab (browsers require a
+  one-time "allow pop-ups" permission to open several tabs at once; the app
+  explains this inline rather than with a blocking dialog)
 - Works offline against the last synced copy, always clearly labelled as cached
 - Installs to the homescreen on iOS Safari and Android Chrome
 - Adapts from a phone to a large desktop monitor

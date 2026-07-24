@@ -86,6 +86,58 @@ function announce(message) {
   }, 50);
 }
 
+let toastTimer = null;
+
+/**
+ * Show a brief message at the bottom of the screen.
+ * @param {string} message
+ * @param {{persistent?: boolean, duration?: number}} [opts] persistent toasts
+ *   stay until dismissed; others auto-hide.
+ */
+function showToast(message, opts = {}) {
+  const el = $('toast');
+  if (!el) return;
+  clearTimeout(toastTimer);
+
+  el.replaceChildren();
+  const text = document.createElement('span');
+  text.className = 'toast-msg';
+  text.textContent = message;
+  el.appendChild(text);
+
+  if (opts.persistent) {
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    close.addEventListener('click', hideToast);
+    el.appendChild(close);
+  }
+
+  el.hidden = false;
+  // Force a reflow so the transition runs on the freshly shown element.
+  void el.offsetWidth;
+  el.classList.add('is-visible');
+
+  announce(message);
+
+  if (!opts.persistent) {
+    toastTimer = setTimeout(hideToast, opts.duration || 3400);
+  }
+}
+
+function hideToast() {
+  const el = $('toast');
+  if (!el) return;
+  clearTimeout(toastTimer);
+  el.classList.remove('is-visible');
+  toastTimer = setTimeout(() => {
+    el.hidden = true;
+    el.replaceChildren();
+  }, 200);
+}
+
 /* -------------------------------------------------------------- rendering */
 
 function iconSvg(paths, className) {
@@ -186,23 +238,28 @@ function bookmarkRow(node, pathLabel) {
 /**
  * Open every bookmark in a folder, each in its own tab.
  *
- * Browsers only allow multiple `window.open` calls while handling a user
- * gesture, so they are issued synchronously from the click handler. Popup
- * blockers may still refuse some, which is why the result is counted and
- * reported rather than assumed.
+ * Browsers only allow the FIRST new tab per user gesture without permission;
+ * opening several at once requires the site's pop-up permission. So the calls
+ * are issued synchronously from the click handler, the successes are counted,
+ * and if any were blocked the user gets a calm one-time explanation rather than
+ * a blocking alert.
+ *
+ * Note: window.open is called WITHOUT a 'noopener' feature on purpose. Passing
+ * 'noopener' makes window.open return null by spec, which would make every tab
+ * look blocked; instead we open normally and sever the opener link ourselves.
  */
 function openAllInFolder(node) {
   const targets = collectOpenable(node);
   const label = displayTitle(node);
 
   if (!targets.length) {
-    announce(`“${label}” has no bookmarks to open.`);
+    showToast(`“${label}” has no bookmarks to open.`);
     return;
   }
 
   // Opening dozens of tabs at once is rarely intended, and on mobile it can
   // wedge the browser. Confirm before anything drastic.
-  const MANY = 10;
+  const MANY = 12;
   if (
     targets.length > MANY &&
     !confirm(`Open all ${targets.length} bookmarks in “${label}” in separate tabs?`)
@@ -212,20 +269,41 @@ function openAllInFolder(node) {
 
   let opened = 0;
   for (const bookmark of targets) {
-    const win = window.open(bookmark.url, '_blank', 'noopener,noreferrer');
-    if (win) opened++;
+    const win = window.open(bookmark.url, '_blank');
+    if (win) {
+      // Reverse-tabnabbing guard: the opened page must not reach back into this
+      // one. (Cross-origin assignment can throw; that is fine.)
+      try {
+        win.opener = null;
+      } catch (e) {
+        /* ignore */
+      }
+      opened++;
+    }
   }
 
-  if (opened === targets.length) {
-    announce(`Opened ${opened} ${opened === 1 ? 'tab' : 'tabs'} from “${label}”.`);
-  } else if (opened === 0) {
-    announce('Your browser blocked the new tabs. Allow pop-ups for this site and try again.');
-    alert(
-      'Your browser blocked the new tabs.\n\nAllow pop-ups for this site to use "open all", or open bookmarks individually.'
-    );
+  const blocked = targets.length - opened;
+  if (blocked === 0) {
+    showToast(`Opened ${opened} ${opened === 1 ? 'tab' : 'tabs'} from “${label}”.`);
   } else {
-    announce(`Opened ${opened} of ${targets.length} tabs; the rest were blocked.`);
+    // Only reachable while pop-ups are still blocked; once the user allows them
+    // for the site, every tab opens and this never shows again.
+    showPopupHelp(opened, blocked, targets.length);
   }
+}
+
+/**
+ * Explain the browser pop-up limit, once, without a blocking dialog.
+ */
+function showPopupHelp(opened, blocked, total) {
+  const lead =
+    opened > 0
+      ? `Opened ${opened} of ${total} tabs. `
+      : 'Your browser opened the first tab only. ';
+  showToast(
+    `${lead}To open several at once, allow pop-ups for this site — you only need to do it once, then “open all” works every time.`,
+    { persistent: true }
+  );
 }
 
 /** Build a collapsible folder row plus its (lazily rendered) children. */
