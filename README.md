@@ -26,8 +26,9 @@ modules. Nothing is bundled, minified or transpiled.
 - Works offline against the last synced copy, always clearly labelled as cached
 - Installs to the homescreen on iOS Safari and Android Chrome
 - Adapts from a phone to a large desktop monitor
-- Follows your system light/dark setting, with a manual **System / Light / Dark**
-  switch (in the nav on the landing page, and the menu on the app)
+- Light theme by default, with a **Light / Dark** switch (in the nav on the
+  landing page, and the menu on the app). The choice is remembered; the device's
+  own appearance setting is not followed.
 
 The site is two pages: `index.html` is the landing page, and `app.html` is the
 app itself. The manifest's `start_url` points at `app.html`, so installing to

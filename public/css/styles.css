@@ -84,6 +84,11 @@ body {
   margin-bottom: 1.75rem;
 }
 
+.pane .made-by,
+.sheet .made-by {
+  margin-top: 1.5rem;
+}
+
 .logo {
   border-radius: 15px;
   margin-bottom: 0.85rem;

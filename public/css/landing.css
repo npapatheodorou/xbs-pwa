@@ -729,3 +729,7 @@
   color: var(--text-dim);
   font-size: 0.86rem;
 }
+
+.footer .made-by {
+  margin-top: 1.5rem;
+}

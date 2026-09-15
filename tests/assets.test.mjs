@@ -219,16 +219,23 @@ test('the service worker precaches the theme controller', () => {
   assert.ok(shell.includes("'./js/theme.js'"), 'sw.js should precache js/theme.js');
 });
 
-test('an explicit theme choice can override the OS preference', () => {
+test('the theme is light by default and only dark or light, never the OS setting', () => {
   const css = read('css/theme.css');
-  assert.match(css, /:root\[data-theme=['"]dark['"]\]/, 'need a forced-dark selector');
-  assert.match(css, /:root\[data-theme=['"]light['"]\]/, 'need a forced-light selector');
-  // System-dark must be gated so a forced light choice still wins.
-  assert.match(
-    css,
-    /prefers-color-scheme: dark[\s\S]*?:root:not\(\[data-theme=['"]light['"]\]\)/,
-    'system-dark palette must be gated by :not([data-theme=light])'
-  );
+  assert.match(css, /:root\[data-theme=['"]dark['"]\]/, 'need a dark-theme selector');
+  // The OS appearance is deliberately ignored, so no media query may switch
+  // the palette on its own.
+  assert.ok(!/prefers-color-scheme/.test(css), 'theme.css must not follow the OS preference');
+
+  const js = read('js/theme.js');
+  assert.ok(!/prefers-color-scheme|'system'/.test(js), 'theme.js must not offer a system option');
+
+  for (const page of [...PAGES, '404.html']) {
+    const html = read(page);
+    assert.ok(!/prefers-color-scheme/.test(html), `${page} must not vary by OS preference`);
+    assert.ok(!/theme-ico-system|data-theme-value="system"/.test(html), `${page} still offers a system theme`);
+    // Browsers pick the first theme-color tag, so there must be one for theme.js to update.
+    assert.equal((html.match(/name="theme-color"/g) || []).length, 1, `${page} needs exactly one theme-color meta`);
+  }
 });
 
 test('every page with a theme control also loads theme.js', () => {
@@ -278,6 +285,17 @@ test('vercel.json has the expected build, routing and security headers', () => {
   assert.match(csp, /connect-src [^;]*https:/);
   for (const directive of ['default-src', 'connect-src', 'frame-ancestors', 'object-src']) {
     assert.ok(csp.includes(directive), `CSP missing ${directive}`);
+  }
+});
+
+test('every page credits the author with a safe external link', () => {
+  for (const page of [...PAGES, '404.html']) {
+    const html = read(page);
+    const credit = html.match(/<p class="made-by">[\s\S]*?<\/p>/);
+    assert.ok(credit, `${page} is missing the "Made by" credit`);
+    assert.match(credit[0], /href="https:\/\/github\.com\/npapatheodorou"/, `${page}: credit must link to GitHub`);
+    // target=_blank without noopener hands the opened page a reference to this one.
+    assert.match(credit[0], /rel="noopener noreferrer"/, `${page}: external credit link needs rel=noopener`);
   }
 });
 

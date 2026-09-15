@@ -7,9 +7,9 @@
  */
 
 :root {
-  /* Theme the UA (form controls, scrollbars) to match. Pinned per-theme below
-     when the user forces a choice. */
-  color-scheme: light dark;
+  /* Theme the UA (form controls, scrollbars) to match. Light is the default;
+     the dark block below switches it. */
+  color-scheme: light;
 
   /* Brand colours, sampled from the logo artwork */
   --brand-navy: #0a323d;
@@ -66,50 +66,22 @@
 }
 
 /*
- * Dark palette.
- *
- * There are two identical blocks below -- KEEP THEM IN SYNC. One applies when
- * the OS prefers dark and the user has not forced light; the other applies when
- * the user explicitly picks dark, regardless of OS. The attribute selectors
- * outweigh the plain :root in the media query, so an explicit choice always
- * wins. (A theme.js sets data-theme on <html>; with no attribute, the OS decides.)
+ * Dark palette, applied only when the user picks dark (theme.js sets
+ * data-theme="dark" on <html>). The OS appearance setting is ignored: with no
+ * attribute the site is light.
  */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #071519;
-    --bg-alt: #0a1f26;
-    --surface: #0e2831;
-    --surface-2: #14343f;
-    --text: #e6f2f5;
-    --text-dim: #92aeb7; /* 6.7:1 on --surface */
-    --border: #1e3f4a;
-    --border-strong: #2a5462;
-    --accent: #5cc7dd; /* 7.9:1 on --surface */
-    --accent-hover: #8adcec;
-    --accent-soft: #12303a;
-    --accent-contrast: #04181d;
-    --danger: #ff9a9a;
-    --danger-soft: #2c1618;
-    --warn-bg: #2e2410;
-    --warn-border: #5c4a1e;
-    --warn-text: #f2d9a4;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-    --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.55);
-  }
-}
-
 :root[data-theme='dark'] {
+  color-scheme: dark;
+
   --bg: #071519;
   --bg-alt: #0a1f26;
   --surface: #0e2831;
   --surface-2: #14343f;
   --text: #e6f2f5;
-  --text-dim: #92aeb7;
+  --text-dim: #92aeb7; /* 6.7:1 on --surface */
   --border: #1e3f4a;
   --border-strong: #2a5462;
-  --accent: #5cc7dd;
+  --accent: #5cc7dd; /* 7.9:1 on --surface */
   --accent-hover: #8adcec;
   --accent-soft: #12303a;
   --accent-contrast: #04181d;
@@ -122,14 +94,6 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.55);
-}
-
-/* Pin the UA colour-scheme when the user forces a theme. */
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-:root[data-theme='dark'] {
-  color-scheme: dark;
 }
 
 /* ----------------------------------------------------------------- reset */
@@ -204,7 +168,7 @@ svg {
 
 /* ---------------------------------------------------- theme controls ---- */
 
-/* Single icon button (nav, setup/unlock panes) that cycles System→Light→Dark.
+/* Single icon button (nav, setup/unlock panes) that toggles Light↔Dark.
    theme.js sets data-state; CSS shows the one matching icon. */
 .theme-cycle {
   display: inline-grid;
@@ -241,16 +205,15 @@ svg {
 .theme-cycle .theme-ico {
   display: none;
 }
-.theme-cycle[data-state='system'] .theme-ico-system,
 .theme-cycle[data-state='light'] .theme-ico-light,
 .theme-cycle[data-state='dark'] .theme-ico-dark {
   display: block;
 }
 
-/* Segmented control (app menu sheet): System | Light | Dark. */
+/* Segmented control (app menu sheet): Light | Dark. */
 .theme-seg {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--border);
@@ -305,4 +268,46 @@ svg {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+
+/* ---------------------------------------------------------- made by ---- */
+
+/* Author credit, shared by the landing page, the app and the 404 page. Each
+   page's own stylesheet sets the spacing around it. */
+.made-by {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.made-by a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.made-by a:hover {
+  color: var(--text);
+}
+
+.made-by a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+.made-by svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
 }

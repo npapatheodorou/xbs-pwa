@@ -1,53 +1,45 @@
 /**
- * Light / dark / system theme control, shared by the landing page and the app.
+ * Light / dark theme control, shared by the landing page and the app.
  *
  * Loaded as a synchronous (non-module) script in <head> so the saved choice is
  * applied to <html data-theme> before first paint — no flash of the wrong
  * theme. It is an external same-origin file, so it satisfies the strict CSP
  * (script-src 'self'); an inline script would be blocked.
  *
- * Preference model: 'system' (default — follow the OS), 'light', or 'dark'.
- * Stored under a single key so both pages and multiple tabs stay in sync.
+ * Preference model: 'light' (default) or 'dark'. The OS appearance setting is
+ * deliberately ignored. Stored under a single key so both pages and multiple
+ * tabs stay in sync; any other stored value, including the old follow-the-OS
+ * setting, reads as light.
  */
 (function () {
   var KEY = 'xbs.theme';
   var root = document.documentElement;
-  var mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
   function saved() {
     try {
-      var v = localStorage.getItem(KEY);
-      return v === 'light' || v === 'dark' ? v : 'system';
+      return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
     } catch (e) {
-      return 'system';
+      return 'light';
     }
   }
 
-  /** Apply a preference to the document. 'system' removes the attribute so the
-   *  CSS media query takes over. */
+  /** Apply a preference to the document. Light is the base palette, so only
+   *  dark needs the attribute. */
   function apply(pref) {
-    if (pref === 'light' || pref === 'dark') root.setAttribute('data-theme', pref);
+    if (pref === 'dark') root.setAttribute('data-theme', 'dark');
     else root.removeAttribute('data-theme');
     updateThemeColor(pref);
   }
 
-  /** The theme actually showing right now. */
-  function effective(pref) {
-    if (pref === 'light' || pref === 'dark') return pref;
-    return mql && mql.matches ? 'dark' : 'light';
-  }
-
-  /** Keep the address-bar / status-bar tint in step with a forced theme. */
+  /** Keep the address-bar / status-bar tint in step with the theme. */
   function updateThemeColor(pref) {
-    var color = effective(pref) === 'dark' ? '#071519' : '#1b6b7d';
-    var meta = document.querySelector('meta[name="theme-color"][data-dynamic]');
+    var meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
       meta = document.createElement('meta');
       meta.setAttribute('name', 'theme-color');
-      meta.setAttribute('data-dynamic', '');
       document.head.appendChild(meta);
     }
-    meta.setAttribute('content', color);
+    meta.setAttribute('content', pref === 'dark' ? '#071519' : '#1b6b7d');
   }
 
   // Apply immediately, before the body paints.
@@ -55,8 +47,8 @@
 
   function set(pref) {
     try {
-      if (pref === 'system') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, pref);
+      if (pref === 'dark') localStorage.setItem(KEY, 'dark');
+      else localStorage.removeItem(KEY);
     } catch (e) {
       /* storage may be unavailable (private mode); theme still applies for now */
     }
@@ -64,33 +56,15 @@
     syncControls();
   }
 
-  /**
-   * The next preference when the cycle button is tapped.
-   *
-   * 'system' and whichever of light/dark matches the OS look identical, so a
-   * naive system→light→dark order makes the first tap a no-op for anyone whose
-   * OS already matches (most people, on a light OS). The order here is chosen
-   * so the FIRST step away from any state visibly flips the theme; only the wrap
-   * back to 'system' can match the OS appearance, and even then the icon changes.
-   */
-  function nextPref() {
-    var cur = saved();
-    var sysDark = mql && mql.matches;
-    var order = sysDark ? ['system', 'light', 'dark'] : ['system', 'dark', 'light'];
-    return order[(order.indexOf(cur) + 1) % order.length];
-  }
-
   /** Reflect the current choice in every control on the page. */
   function syncControls() {
     var cur = saved();
+    var next = cur === 'dark' ? 'light' : 'dark';
 
     var cycles = document.querySelectorAll('[data-theme-cycle]');
     for (var i = 0; i < cycles.length; i++) {
       cycles[i].setAttribute('data-state', cur);
-      cycles[i].setAttribute(
-        'aria-label',
-        'Theme: ' + cur + '. Activate to change.'
-      );
+      cycles[i].setAttribute('aria-label', 'Switch to ' + next + ' theme');
     }
 
     var opts = document.querySelectorAll('[data-theme-value]');
@@ -105,7 +79,7 @@
     var cycles = document.querySelectorAll('[data-theme-cycle]');
     for (var i = 0; i < cycles.length; i++) {
       cycles[i].addEventListener('click', function () {
-        set(nextPref());
+        set(saved() === 'dark' ? 'light' : 'dark');
       });
     }
 
@@ -123,19 +97,6 @@
     document.addEventListener('DOMContentLoaded', wire);
   } else {
     wire();
-  }
-
-  // In 'system' mode, react to the OS flipping so the tint and any controls stay
-  // correct (the CSS variables switch on their own via the media query).
-  if (mql) {
-    var onChange = function () {
-      if (saved() === 'system') {
-        updateThemeColor('system');
-        syncControls();
-      }
-    };
-    if (mql.addEventListener) mql.addEventListener('change', onChange);
-    else if (mql.addListener) mql.addListener(onChange);
   }
 
   // Another tab changed the preference: mirror it here.
