@@ -40,7 +40,7 @@ const server = http.createServer((req, res) => {
     filePath = path.join(filePath, 'index.html');
   }
 
-  // SPA fallback, matching the netlify.toml redirect.
+  // SPA fallback, matching the vercel.json rewrite.
   if (!fs.existsSync(filePath)) {
     filePath = path.join(ROOT, 'index.html');
   }

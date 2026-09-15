@@ -240,32 +240,36 @@ test('every page with a theme control also loads theme.js', () => {
   }
 });
 
-test('netlify.toml has the expected security headers and SPA fallback', () => {
-  const toml = fs.readFileSync(path.join(ROOT, 'netlify.toml'), 'utf8');
+test('vercel.json has the expected security headers and SPA fallback', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 
-  assert.match(toml, /publish = "public"/);
-  assert.match(toml, /status = 200/, 'SPA fallback redirect missing');
-  assert.match(toml, /Content-Security-Policy/);
-  assert.match(toml, /X-Frame-Options/);
-  assert.match(toml, /X-Content-Type-Options/);
-  assert.match(toml, /Referrer-Policy/);
-
-  // connect-src must permit HTTPS so user-configured self-hosted instances work.
-  assert.match(toml, /connect-src [^;]*https:/);
-
-  // The CSP must be a single-line value. Netlify emits one header per line of a
-  // multi-line value, and multiple CSP headers are enforced as an intersection,
-  // which would block the app's own API calls.
-  const cspLine = toml.split('\n').find((line) => line.includes('Content-Security-Policy'));
-  assert.ok(cspLine, 'CSP header not found');
+  assert.equal(config.outputDirectory, 'public');
   assert.ok(
-    !cspLine.includes('"""') && !cspLine.includes("'''"),
-    'CSP must not use a multi-line TOML string'
+    config.rewrites.some((r) => r.source === '/app' && r.destination === '/app.html'),
+    '/app rewrite missing'
   );
-  assert.match(cspLine, /^\s*Content-Security-Policy = ".*"\s*$/, 'CSP must be one quoted line');
-  // Sanity-check that the whole policy really is on that line.
+  const last = config.rewrites.at(-1);
+  assert.deepEqual(last, { source: '/(.*)', destination: '/index.html' }, 'SPA fallback must be the last rewrite');
+
+  const global = config.headers.find((h) => h.source === '/(.*)');
+  assert.ok(global, 'site-wide header block missing');
+  const header = (key) => global.headers.find((h) => h.key === key)?.value;
+  for (const key of ['Content-Security-Policy', 'X-Frame-Options', 'X-Content-Type-Options', 'Referrer-Policy']) {
+    assert.ok(header(key), `${key} header missing`);
+  }
+
+  // Multiple CSP headers are enforced as an intersection, which could block the
+  // app's own API calls, so there must be exactly one.
+  const cspCount = config.headers
+    .flatMap((h) => h.headers)
+    .filter((h) => h.key.toLowerCase() === 'content-security-policy').length;
+  assert.equal(cspCount, 1, 'exactly one CSP header expected');
+
+  const csp = header('Content-Security-Policy');
+  // connect-src must permit HTTPS so user-configured self-hosted instances work.
+  assert.match(csp, /connect-src [^;]*https:/);
   for (const directive of ['default-src', 'connect-src', 'frame-ancestors', 'object-src']) {
-    assert.ok(cspLine.includes(directive), `CSP line missing ${directive}`);
+    assert.ok(csp.includes(directive), `CSP missing ${directive}`);
   }
 });
 

@@ -2,8 +2,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Netlify local state
-.netlify/
+# Vercel local state
+.vercel/
 
 # Editor
 .vscode/

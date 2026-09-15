@@ -185,27 +185,33 @@ Note that the API returns **401 for "sync ID not found"**, not for a bad passwor
 it never sees your password. A wrong password instead surfaces as an AES-GCM
 authentication failure during decryption.
 
-## Deploying to Netlify
+## Deploying to Vercel
 
 The site is static with no build step, so deployment is just "publish the
-`public/` directory".
+`public/` directory". `vercel.json` sets that up (output directory `public`, no
+framework, no build command) along with the security headers and rewrites.
 
 ### Option A — connect the repo (recommended)
 
 1. Push this repo to GitHub.
-2. In Netlify: **Add new site → Import an existing project**, pick the repo.
-3. Accept the settings from `netlify.toml` (publish directory `public`, no build
-   command). Deploy.
-4. Netlify provisions HTTPS automatically via Let's Encrypt, including on custom
-   domains and the free tier.
+2. In Vercel: **Add New… → Project**, import the repo.
+3. Leave the framework preset as **Other**; the settings come from `vercel.json`.
+   Deploy.
+4. The site is served over HTTPS at `<project>.vercel.app`, and on any custom
+   domain you add, including on the free tier.
 
-Every push to `main` redeploys; branches and PRs get preview URLs. The headers in
-`netlify.toml` are path-based, so previews need no per-URL configuration.
+Every push to `main` redeploys to production; other branches and PRs get preview
+URLs. The headers and rewrites in `vercel.json` are path-based, so previews need
+no per-URL configuration.
 
-### Option B — drag and drop
+### Option B — Vercel CLI
 
-Drag the `public/` folder onto the Netlify dashboard. You lose the `netlify.toml`
-headers and redirects this way, so option A is preferable.
+```bash
+npx vercel          # preview deploy (first run links the project)
+npx vercel --prod   # production deploy
+```
+
+Run it from the repo root, not from `public/`, so `vercel.json` is picked up.
 
 ### Confirm HTTPS before use
 
@@ -219,10 +225,10 @@ uses.
 `connect-src https:` in the CSP lets you point the app at any HTTPS instance
 without redeploying. Your instance must also allow cross-origin requests from
 your site's domain: the API's `allowedOrigins` setting defaults to `[]`, which
-permits all origins, but if you have set it, add your Netlify domain.
+permits all origins, but if you have set it, add your Vercel domain.
 
 To restrict this app to a single instance, replace `connect-src https:` in
-`netlify.toml` with that origin.
+`vercel.json` with that origin.
 
 ## Installing on a phone
 
