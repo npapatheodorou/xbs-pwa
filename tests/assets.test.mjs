@@ -240,16 +240,24 @@ test('every page with a theme control also loads theme.js', () => {
   }
 });
 
-test('vercel.json has the expected security headers and SPA fallback', () => {
+test('vercel.json has the expected build, routing and security headers', () => {
   const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
 
   assert.equal(config.outputDirectory, 'public');
+  assert.equal(config.buildCommand, 'npm test', 'deploys should be gated on the test suite');
+  assert.equal(config.trailingSlash, false, '/app/ would otherwise resolve relative assets under /app/');
   assert.ok(
     config.rewrites.some((r) => r.source === '/app' && r.destination === '/app.html'),
     '/app rewrite missing'
   );
-  const last = config.rewrites.at(-1);
-  assert.deepEqual(last, { source: '/(.*)', destination: '/index.html' }, 'SPA fallback must be the last rewrite');
+
+  // No catch-all rewrite. It would answer missing files with index.html and a
+  // 200, which breaks relative asset paths on nested URLs and lets the service
+  // worker cache HTML under a .js or .css URL. public/404.html handles misses.
+  assert.ok(
+    !config.rewrites.some((r) => r.source === '/(.*)'),
+    'catch-all rewrite would mask 404s'
+  );
 
   const global = config.headers.find((h) => h.source === '/(.*)');
   assert.ok(global, 'site-wide header block missing');
@@ -273,8 +281,21 @@ test('vercel.json has the expected security headers and SPA fallback', () => {
   }
 });
 
-test('neither page uses inline script or style, as the CSP requires', () => {
-  for (const page of PAGES) {
+test('the 404 page uses only root-absolute paths that exist', () => {
+  // It is served at arbitrary depths (/a/b/c), where ./ paths would miss.
+  const html = read('404.html');
+  assert.ok(!/(?:href|src)="\.\//.test(html), '404.html must not use relative paths');
+
+  const refs = [...html.matchAll(/(?:href|src)="\/([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(refs.length > 3, '404.html should reference several local files');
+  for (const ref of refs) {
+    if (ref === '') continue;
+    assert.ok(exists(ref), `404.html references missing file: /${ref}`);
+  }
+});
+
+test('no page uses inline script or style, as the CSP requires', () => {
+  for (const page of [...PAGES, '404.html']) {
     const html = read(page);
     // A script tag with a body (rather than src=) would be blocked by the CSP.
     const inlineScript = /<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?\S[\s\S]*?<\/script>/.test(html);

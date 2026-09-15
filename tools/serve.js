@@ -28,7 +28,15 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  let filePath = path.join(ROOT, decodeURIComponent(url.pathname));
+
+  // Match vercel.json: `trailingSlash: false` redirects /app/ to /app.
+  if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+    res.writeHead(308, { Location: url.pathname.slice(0, -1) + url.search }).end();
+    return;
+  }
+
+  const pathname = url.pathname === '/app' ? '/app.html' : url.pathname;
+  let filePath = path.join(ROOT, decodeURIComponent(pathname));
 
   // Refuse to serve anything outside the publish directory.
   if (!filePath.startsWith(ROOT)) {
@@ -40,13 +48,15 @@ const server = http.createServer((req, res) => {
     filePath = path.join(filePath, 'index.html');
   }
 
-  // SPA fallback, matching the vercel.json rewrite.
+  // Unknown paths get a real 404, as Vercel does with public/404.html.
+  let status = 200;
   if (!fs.existsSync(filePath)) {
-    filePath = path.join(ROOT, 'index.html');
+    filePath = path.join(ROOT, '404.html');
+    status = 404;
   }
 
   const ext = path.extname(filePath);
-  res.writeHead(200, {
+  res.writeHead(status, {
     'Content-Type': MIME[ext] || 'application/octet-stream',
     'Cache-Control': 'no-store'
   });

@@ -187,9 +187,19 @@ authentication failure during decryption.
 
 ## Deploying to Vercel
 
-The site is static with no build step, so deployment is just "publish the
+The site is static with nothing to compile, so deployment is just "publish the
 `public/` directory". `vercel.json` sets that up (output directory `public`, no
-framework, no build command) along with the security headers and rewrites.
+framework) along with the security headers and routing:
+
+- **The build step is `npm test`.** Nothing is built, but a failing test fails
+  the deploy, so a broken reference or config never goes live. Vercel reads
+  `engines.node` in `package.json` to pick the runtime (Node 22+).
+- **`/app` serves `app.html`**, and trailing slashes redirect away (`/app/` →
+  `/app`) so relative asset paths always resolve.
+- **Unknown paths get a real 404** from `public/404.html`. There is deliberately
+  no catch-all rewrite to `index.html`: the site has no client-side routes, and
+  answering a missing `.js` file with HTML and a 200 would let the service
+  worker cache it.
 
 ### Option A — connect the repo (recommended)
 

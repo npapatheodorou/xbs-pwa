@@ -1,12 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": null,
+  "buildCommand": "npm test",
   "outputDirectory": "public",
-  "rewrites": [
-    { "source": "/app", "destination": "/app.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
+  "trailingSlash": false,
+  "rewrites": [{ "source": "/app", "destination": "/app.html" }],
   "headers": [
     {
       "source": "/(.*)",

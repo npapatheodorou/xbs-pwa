@@ -6,6 +6,10 @@
   "license": "MIT",
   "//": "type: module so Node parses public/js/*.js as ES modules, exactly as the browser does",
   "type": "module",
+  "//engines": "node --test with a glob needs Node 22+; Vercel also reads this to pick the build runtime",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "icons": "node tools/generate-icons.js",
     "test": "node --test \"tests/*.test.mjs\"",
